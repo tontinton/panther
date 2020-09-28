@@ -1,0 +1,7 @@
+nimcache/
+nimblecache/
+htmldocs/
+panther.exe
+panther
+tests/test_frontend.exe
+tests/test_frontend
