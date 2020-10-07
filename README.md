@@ -13,7 +13,7 @@ Currently, the panther binary can only parse a single file to an AST representat
 
 When running the panther compiler on test.pan
 ```bash
-nim build -d:release
+nimble build -d:release
 ./panther test.pan
 ```
 
