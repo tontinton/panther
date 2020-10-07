@@ -80,7 +80,7 @@ const EXPECTED_OUTPUT = """
       params:
         [
         ]
-      return type: (kind: Undetermined, value: "void")
+      return type: (kind: Undetermined, value: "u32")
       implementation:
         [
           (
