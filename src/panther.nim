@@ -5,6 +5,7 @@ import clapfn
 import lexer
 import parser
 import ast
+import analyzer
 
 var argParser = ArgumentParser(programName: "panther",
                                fullName: "Panther lang compiler",
@@ -13,6 +14,10 @@ var argParser = ArgumentParser(programName: "panther",
 argParser.addRequiredArgument("input", "Input file.")
 let args = argParser.parse()
 let input = args["input"]
-let l = newLexer(readFile(input))
-let p = newParser()
-echo p.parseBlock(l.tokens())
+
+let inputLexer = newLexer(readFile(input))
+let topLevelParser = newParser()
+
+let inputAst = topLevelParser.parseBlock(inputLexer.tokens())
+inputAst.analyze()
+echo inputAst

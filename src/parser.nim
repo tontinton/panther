@@ -98,7 +98,6 @@ proc nextExpression(parser: Parser,
                 return some(prev)
 
     case token.kind:
-
     of Indentation:
         if parser.stopper != Indentation or token.length == parser.indentation:
             return parser.nextExpression(state, prev)
@@ -125,7 +124,8 @@ proc nextExpression(parser: Parser,
         if expression.isNone():
             raise newException(ParseError, "expected a symbol after `let`")
         return some(Expression(kind: Declaration,
-                               declExpr: expression.get))
+                               declExpr: expression.get()))
+
     of Colon:
         if prev.kind != Ident:
             raise newException(ParseError, "expected `:` only after a symbol")
@@ -139,6 +139,7 @@ proc nextExpression(parser: Parser,
                                                                ident: prev))
             else:
                 raise newException(ParseError, "expected a type after `:`")
+
     of Proc:
         if state.index < state.tokens.len() and state.tokens[state.index].kind == Symbol:
             state.separator = some(SmallArrow)
