@@ -68,6 +68,8 @@ iterator items*(lexer: Lexer): Token {.noSideEffect.} =
                 yield Token(kind: OpenBracket)
             of ')':
                 yield Token(kind: CloseBracket)
+            of '#':
+                yield Token(kind: Pound)
             of '-':
                 yield if index + 1 < lexer.text.len():
                     case lexer.text[index + 1]:

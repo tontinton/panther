@@ -108,6 +108,18 @@ proc nextExpression(parser: Parser,
         else:
             raise newException(ParseError, "indentation of line cannot be larger without starting a new block")
 
+    of Pound:
+        inc(state.index)
+        while state.index < state.tokens.len():
+            case state.tokens[state.index].kind:
+            of NewLine, ColonNewLine:
+                inc(state.index)
+                return some(prev)
+            else:
+                discard
+            inc(state.index)
+        return none[Expression]()
+
     of Let:
         let expression = parser.nextExpression(state)
         if expression.isNone():

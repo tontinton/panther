@@ -6,7 +6,7 @@ proc fib(n: u32) -> u32:
 
 proc main() -> void:
     let x : u32 = 2 + 5 * 8
-    let y = fib(x - 30)
+    let y = fib(x - 30)  # auto type inference
     if x * y > 100:
         return x + y
     elif x * y < 100:

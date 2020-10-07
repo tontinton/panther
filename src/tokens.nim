@@ -22,6 +22,7 @@ type
         SemiColon
         OpenBracket
         CloseBracket
+        Pound
 
         Minus
         MinusEqual
