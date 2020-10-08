@@ -20,9 +20,13 @@ func newFunction(params: OrderedTableRef[string, Type], returnType: Type): Funct
     Function(params: params, returnType: returnType)
 
 func newScope(): Scope =
+    var types = newTable[string, Type]()
+    for (key, val) in BUILTIN_TYPES:
+        types[key] = Type(kind: val)
+
     Scope(names: newTable[string, Type](),
           functions: newTable[string, Function](),
-          types: newTable[string, Type]())
+          types: types)
 
 func newScopeFromExisting(scope: Scope): Scope =
     var names = newTable[string, Type]()
@@ -47,10 +51,6 @@ func validateUnique(scope: Scope, name: string) =
         raise newException(AnalyzeError, fmt"`{name}` is already declared as a function")
     if name in scope.types:
         raise newException(AnalyzeError, fmt"`{name}` is already declared as a type")
-
-func validateExists(scope: Scope, name: string) =
-    if not (name in scope.names or name in scope.functions or name in scope.types):
-        raise newException(AnalyzeError, fmt"`{name}` wasn't declared yet")
 
 func validateFunctionExists(scope: Scope, name: string) =
     if not (name in scope.functions):
@@ -143,7 +143,24 @@ proc analyze(expression: Expression, scope: Scope) =
         expression.ident.validateKind(Ident)
 
     of Ident:
-        scope.validateExists(expression.value)
+        let name = expression.value
+        if name in scope.types:
+            raise newException(AnalyzeError, fmt"`{name}` is a type, not a valid variable name")
+
+        if not (name in scope.names or name in scope.functions):
+            raise newException(AnalyzeError, fmt"`{name}` wasn't declared yet")
+
+    of BinOp:
+        expression.left.analyze(scope)
+        expression.right.analyze(scope)
+
+    of IfThen:
+        expression.condition.analyze(scope)
+        expression.then.analyze(scope)
+
+    of IfElseThen:
+        expression.ifThen.analyze(scope)
+        expression.otherwise.analyze(scope)
 
     of Assign:
         case expression.assignee.kind:
