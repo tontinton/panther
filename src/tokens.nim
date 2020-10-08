@@ -6,6 +6,7 @@ type
 
         Symbol
         Number
+        Str
 
         If
         Else
@@ -15,6 +16,8 @@ type
         Ret
         Import
         Pass
+        True
+        False
 
         Comma
         Colon
@@ -43,7 +46,7 @@ type
 
     Token* = ref object
         case kind*: TokenKind
-        of Symbol, Number:
+        of Symbol, Number, Str:
             value*: string
         of Indentation:
             length*: int

@@ -25,6 +25,12 @@ proc fib(n: s32) -> s32:
     else:
         return fib(n - 1) + fib(n - 2)
 
+proc isFoo(input: string) -> bool:
+    if input == "foo":
+        return true
+    else:
+        return false
+
 proc main() -> s32:
     let x : s32 = 2 + 5 * 8
     let y = fib(x - 30)  # auto type inference
@@ -32,6 +38,8 @@ proc main() -> s32:
         return x + y
     elif x * y < 100:
         return x - y
+    elif isFoo("bar"):
+        return -1
     else:
         return 0
 ```
@@ -58,6 +66,7 @@ The result is:
                 left:
                   ident: n
                 right:
+                  type: (kind: Signed32)
                   literal: 1
             then:
               [
@@ -81,6 +90,7 @@ The result is:
                                   left:
                                     ident: n
                                   right:
+                                    type: (kind: Signed32)
                                     literal: 1
                               ),
                             ]
@@ -94,9 +104,53 @@ The result is:
                                   left:
                                     ident: n
                                   right:
+                                    type: (kind: Signed32)
                                     literal: 2
                               ),
                             ]
+                ),
+              ]
+          ),
+        ]
+  ),
+  (
+    empty
+  ),
+  (
+    function:
+      name: isFoo
+      params:
+        [
+          (
+            type: (kind: String)
+            ident: input
+          ),
+        ]
+      return type: (kind: Boolean)
+      implementation:
+        [
+          (
+            if:
+              ==:
+                left:
+                  ident: input
+                right:
+                  type: (kind: String)
+                  literal: foo
+            then:
+              [
+                (
+                  return:
+                    type: (kind: Boolean)
+                    literal: true
+                ),
+              ]
+            else:
+              [
+                (
+                  return:
+                    type: (kind: Boolean)
+                    literal: false
                 ),
               ]
           ),
@@ -123,12 +177,15 @@ The result is:
                 value:
                   +:
                     left:
+                      type: (kind: Signed32)
                       literal: 2
                     right:
                       *:
                         left:
+                          type: (kind: Signed32)
                           literal: 5
                         right:
+                          type: (kind: Signed32)
                           literal: 8
           ),
           (
@@ -147,6 +204,7 @@ The result is:
                             left:
                               ident: x
                             right:
+                              type: (kind: Signed32)
                               literal: 30
                         ),
                       ]
@@ -161,6 +219,7 @@ The result is:
                     right:
                       ident: y
                 right:
+                  type: (kind: Signed32)
                   literal: 100
             then:
               [
@@ -183,6 +242,7 @@ The result is:
                       right:
                         ident: y
                   right:
+                    type: (kind: Signed32)
                     literal: 100
               then:
                 [
@@ -196,12 +256,32 @@ The result is:
                   ),
                 ]
               else:
-                [
-                  (
-                    return:
-                      literal: 0
-                  ),
-                ]
+                if:
+                  function call:
+                    name: isFoo
+                    params:
+                      [
+                        (
+                          type: (kind: String)
+                          literal: bar
+                        ),
+                      ]
+                then:
+                  [
+                    (
+                      return:
+                        type: (kind: Signed32)
+                        literal: -1
+                    ),
+                  ]
+                else:
+                  [
+                    (
+                      return:
+                        type: (kind: Signed32)
+                        literal: 0
+                    ),
+                  ]
           ),
         ]
   ),

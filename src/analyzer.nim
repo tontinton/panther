@@ -30,7 +30,7 @@ func newScope(): Scope =
           functions: newTable[string, Function](),
           types: types)
 
-func newScopeFromExisting(scope: Scope): Scope =
+proc newScopeFromExisting(scope: Scope): Scope =
     var names = newTable[string, Type]()
     var functions = newTable[string, Function]()
     var types = newTable[string, Type]()
@@ -91,7 +91,7 @@ proc inferType(expression: Expression, scope: Scope): Type =
             raise newException(TypeInferenceError, fmt"the type {name} wasn't declared yet")
 
     of Literal:
-        return Type(kind: Signed32)
+        return expression.literalType
 
     of BinOp:
         let leftType = expression.left.inferType(scope)
@@ -148,12 +148,13 @@ proc analyze(expression: Expression, scope: Scope) =
                 raise newException(AnalyzeError, fmt"{e[]} is an invalid function parameter")
 
         scope.add(name, newFunction(paramsDescription, expression.returnType))
+        functionScope.add(name, newFunction(paramsDescription, expression.returnType))
         expression.implementation.analyze(functionScope)
 
         for e in expression.implementation.expressions:
             if e.kind == Return:
                 let retType = e.retExpr.inferType(scope)
-                if retType != expression.returnType:
+                if retType.kind != expression.returnType.kind:
                     raise newException(AnalyzeError,
                                        fmt"types differ on function return `{name}`, {retType.kind} != {expression.returnType.kind}")
 
@@ -174,7 +175,7 @@ proc analyze(expression: Expression, scope: Scope) =
             case paramExpr.kind:
             of Ident, Literal, FunctionCall, BinOp:
                 let inferredType = paramExpr.inferType(scope)
-                if paramType != paramExpr.inferType(scope):
+                if paramType.kind != paramExpr.inferType(scope).kind:
                     raise newException(AnalyzeError,
                                        fmt"types differ on function call `{name}`, {paramType.kind} != {inferredType.kind}")
                 paramExpr.analyze(scope)
@@ -228,7 +229,25 @@ proc analyze(expression: Expression, scope: Scope) =
         expression.right.analyze(scope)
         let _ = expression.inferType(scope)
 
+    of Return:
+        expression.retExpr.analyze(scope)
+
     of IfThen:
+        # TODO: optimization: interpret expression to know if the function always returns false
+
+        case expression.condition.kind:
+        of BinOp, Ident, Literal:
+            discard
+        of FunctionCall:
+            if expression.condition.inferType(scope).kind != Boolean:
+                raise newException(AnalyzeError,
+                                   "only boolean returning functions are valid inside an if statement currently")
+        else:
+            raise newException(AnalyzeError, fmt"invalid condition expression on if statement")
+
+        if expression.then.kind != Block:
+            raise newException(AnalyzeError, fmt"got {expression.then.kind}, but expected {Block}")
+
         expression.condition.analyze(scope)
         expression.then.analyze(scope)
 
@@ -247,7 +266,7 @@ proc analyze(expression: Expression, scope: Scope) =
         of BinOp, Ident, Literal, FunctionCall:
             expression.assignExpr.analyze(scope)
         else:
-            raise newException(AnalyzeError, fmt"cannot assign from {expression.assignee.kind}")
+            raise newException(AnalyzeError, fmt"cannot assign from {expression.assignExpr.kind}")
 
     else:
         discard

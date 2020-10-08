@@ -26,6 +26,7 @@ const EXPECTED_OUTPUT = """
                 left:
                   ident: n
                 right:
+                  type: (kind: Signed32)
                   literal: 1
             then:
               [
@@ -49,6 +50,7 @@ const EXPECTED_OUTPUT = """
                                   left:
                                     ident: n
                                   right:
+                                    type: (kind: Signed32)
                                     literal: 1
                               ),
                             ]
@@ -62,9 +64,53 @@ const EXPECTED_OUTPUT = """
                                   left:
                                     ident: n
                                   right:
+                                    type: (kind: Signed32)
                                     literal: 2
                               ),
                             ]
+                ),
+              ]
+          ),
+        ]
+  ),
+  (
+    empty
+  ),
+  (
+    function:
+      name: isFoo
+      params:
+        [
+          (
+            type: (kind: String)
+            ident: input
+          ),
+        ]
+      return type: (kind: Boolean)
+      implementation:
+        [
+          (
+            if:
+              ==:
+                left:
+                  ident: input
+                right:
+                  type: (kind: String)
+                  literal: foo
+            then:
+              [
+                (
+                  return:
+                    type: (kind: Boolean)
+                    literal: true
+                ),
+              ]
+            else:
+              [
+                (
+                  return:
+                    type: (kind: Boolean)
+                    literal: false
                 ),
               ]
           ),
@@ -91,12 +137,15 @@ const EXPECTED_OUTPUT = """
                 value:
                   +:
                     left:
+                      type: (kind: Signed32)
                       literal: 2
                     right:
                       *:
                         left:
+                          type: (kind: Signed32)
                           literal: 5
                         right:
+                          type: (kind: Signed32)
                           literal: 8
           ),
           (
@@ -115,6 +164,7 @@ const EXPECTED_OUTPUT = """
                             left:
                               ident: x
                             right:
+                              type: (kind: Signed32)
                               literal: 30
                         ),
                       ]
@@ -129,6 +179,7 @@ const EXPECTED_OUTPUT = """
                     right:
                       ident: y
                 right:
+                  type: (kind: Signed32)
                   literal: 100
             then:
               [
@@ -151,6 +202,7 @@ const EXPECTED_OUTPUT = """
                       right:
                         ident: y
                   right:
+                    type: (kind: Signed32)
                     literal: 100
               then:
                 [
@@ -164,12 +216,32 @@ const EXPECTED_OUTPUT = """
                   ),
                 ]
               else:
-                [
-                  (
-                    return:
-                      literal: 0
-                  ),
-                ]
+                if:
+                  function call:
+                    name: isFoo
+                    params:
+                      [
+                        (
+                          type: (kind: String)
+                          literal: bar
+                        ),
+                      ]
+                then:
+                  [
+                    (
+                      return:
+                        type: (kind: Signed32)
+                        literal: -1
+                    ),
+                  ]
+                else:
+                  [
+                    (
+                      return:
+                        type: (kind: Signed32)
+                        literal: 0
+                    ),
+                  ]
           ),
         ]
   ),

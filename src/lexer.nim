@@ -1,5 +1,6 @@
 import sequtils
 import strutils
+import strformat
 
 import tokens
 
@@ -9,6 +10,12 @@ type
 
 func newLexer*(text: string): Lexer =
     Lexer(text: text.replace("\r\n", "\n"))
+
+func getString(line: string, index: int): string =
+    var currentIndex = index
+    while currentIndex < line.len() and line[currentIndex] != '"':
+        inc(currentIndex)
+    line[index..<currentIndex]
 
 func getNumber(line: string, index: int): string =
     var currentIndex = index
@@ -79,6 +86,11 @@ iterator items*(lexer: Lexer): Token {.noSideEffect.} =
                     of '=':
                         inc(index)
                         Token(kind: MinusEqual)
+                    of '0'..'9', '.':
+                        inc(index)
+                        let value = getNumber(lexer.text, index)
+                        index += value.len() - 1
+                        Token(kind: Number, value: fmt"-{value}")
                     else:
                         Token(kind: Minus)
                 else:
@@ -119,6 +131,10 @@ iterator items*(lexer: Lexer): Token {.noSideEffect.} =
                     Token(kind: SmallerThanEqual)
                 else:
                     Token(kind: SmallerThan)
+            of '"':
+                let value = getString(lexer.text, index + 1)
+                index += value.len() + 1
+                yield Token(kind: Str, value: value)
             of '0'..'9', '.':
                 let value = getNumber(lexer.text, index)
                 index += value.len() - 1
@@ -143,6 +159,10 @@ iterator items*(lexer: Lexer): Token {.noSideEffect.} =
                     yield Token(kind: Import)
                 of "pass":
                     yield Token(kind: Pass)
+                of "true":
+                    yield Token(kind: True)
+                of "false":
+                    yield Token(kind: False)
                 else:
                     yield Token(kind: Symbol, value: value)
             else:

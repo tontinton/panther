@@ -4,6 +4,8 @@ type
         Auto
         Signed32
         Unsigned32
+        Boolean
+        String
 
     Type* = ref object
         case kind*: TypeKind
@@ -16,4 +18,6 @@ const BUILTIN_TYPES* = {
     "auto": Auto,
     "s32": Signed32,
     "u32": Unsigned32,
+    "bool": Boolean,
+    "string": String,
 }

@@ -24,8 +24,11 @@ type
         case kind*: ExpressionKind
         of Empty:
             discard
-        of Ident, Literal:
+        of Ident:
             value*: string
+        of Literal:
+            literalType*: Type
+            literal*: string
         of TypedIdent:
             identType*: Type
             ident*: Expression
@@ -72,11 +75,11 @@ func formatTreeString(expression: Expression, tabs: uint): string =
         fmt"{tabs.toString()}ident: {expression.value}"
 
     of TypedIdent:
-        fmt"""{tabs.toString()}type: {expression.identType[]}
-{expression.ident.formatTreeString(tabs)}"""
+        &"{tabs.toString()}type: {expression.identType[]}\n{expression.ident.formatTreeString(tabs)}"
 
     of Literal:
-        fmt"{tabs.toString()}literal: {expression.value}"
+        let t = tabs.toString()
+        &"{tabs.toString()}type: {expression.literalType[]}\n{t}literal: {expression.literal}"
 
     of BinOp:
         let operator = case expression.operation.kind:
@@ -144,17 +147,11 @@ func formatTreeString(expression: Expression, tabs: uint): string =
         var block_string = ""
         let t = tabs.toString()
         for inner in expression.expressions:
-            block_string.add(fmt"""
-
-  {t}(
-{inner.formatTreeString(tabs + 2)}
-  {t}),""")
-        fmt"""{t}[{block_string}
-{t}]"""
+            block_string.add(&"\n  {t}(\n{inner.formatTreeString(tabs + 2)}\n  {t}),")
+        &"{t}[{block_string}\n{t}]"
 
     of Return:
-        fmt"""{tabs.toString()}return:
-{expression.retExpr.formatTreeString(tabs + 1)}"""
+        &"{tabs.toString()}return:\n{expression.retExpr.formatTreeString(tabs + 1)}"
 
 func `$`*(expression: Expression): string =
     formatTreeString(expression, 0)

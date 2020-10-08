@@ -198,7 +198,24 @@ proc nextExpression(parser: Parser,
         return parser.nextExpression(state, Expression(kind: Ident, value: token.value))
 
     of Number:
-        return parser.nextExpression(state, Expression(kind: Literal, value: token.value))
+        return parser.nextExpression(state, Expression(kind: Literal,
+                                                       literalType: Type(kind: Signed32),
+                                                       literal: token.value))
+
+    of Str:
+        return parser.nextExpression(state, Expression(kind: Literal,
+                                                       literalType: Type(kind: String),
+                                                       literal: token.value))
+
+    of True:
+        return parser.nextExpression(state, Expression(kind: Literal,
+                                                       literalType: Type(kind: Boolean),
+                                                       literal: "true"))
+
+    of False:
+        return parser.nextExpression(state, Expression(kind: Literal,
+                                                       literalType: Type(kind: Boolean),
+                                                       literal: "false"))
 
     of ColonNewLine:
         let expression = parser.nextBlock(state)
@@ -218,11 +235,6 @@ proc nextExpression(parser: Parser,
             raise newException(ParseError, fmt"no expression after `{token.kind}`")
 
         let condition = expression.get()
-        case condition.kind:
-        of BinOp, Ident, Literal:
-            discard
-        else:
-            raise newException(ParseError, fmt"expression after `{token.kind}` must be a valid arithmetic expression")
 
         dec(state.index)
         expression = parser.nextExpression(state)
@@ -230,9 +242,6 @@ proc nextExpression(parser: Parser,
             raise newException(ParseError, fmt"no block after `{token.kind}`")
 
         let then = expression.get()
-        if then.kind != Block:
-            raise newException(ParseError, fmt"expected a block, not `{then.kind}`")
-
         let ifExpr = Expression(kind: IfThen, condition: condition, then: then)
 
         if state.index + 1 < state.tokens.len() and state.tokens[state.index].kind == Indentation:
