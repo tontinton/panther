@@ -15,7 +15,7 @@ func getNumber(line: string, index: int): string =
     while currentIndex < line.len():
         case line[currentIndex]:
         of '0'..'9', '.':
-            currentIndex += 1
+            inc(currentIndex)
         else:
             break
     line[index..<currentIndex]
@@ -25,7 +25,7 @@ func getSymbol(line: string, index: int): string =
     while currentIndex < line.len():
         case line[currentIndex]:
         of 'A'..'Z', 'a'..'z', '0'..'9', '_':
-            currentIndex += 1
+            inc(currentIndex)
         else:
             break
     line[index..<currentIndex]
@@ -58,7 +58,7 @@ iterator items*(lexer: Lexer): Token {.noSideEffect.} =
                 yield Token(kind: Comma)
             of ':':
                 yield if index + 1 < lexer.text.len() and lexer.text[index + 1] == '\n':
-                    index += 1
+                    inc(index)
                     Token(kind: ColonNewLine)
                 else:
                     Token(kind: Colon)
@@ -74,10 +74,10 @@ iterator items*(lexer: Lexer): Token {.noSideEffect.} =
                 yield if index + 1 < lexer.text.len():
                     case lexer.text[index + 1]:
                     of '>':
-                        index += 1
+                        inc(index)
                         Token(kind: SmallArrow)
                     of '=':
-                        index += 1
+                        inc(index)
                         Token(kind: MinusEqual)
                     else:
                         Token(kind: Minus)
@@ -85,37 +85,37 @@ iterator items*(lexer: Lexer): Token {.noSideEffect.} =
                     Token(kind: Minus)
             of '+':
                 yield if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
-                    index += 1
+                    inc(index)
                     Token(kind: PlusEqual)
                 else:
                     Token(kind: Plus)
             of '/':
                 yield if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
-                    index += 1
+                    inc(index)
                     Token(kind: DivEqual)
                 else:
                     Token(kind: Div)
             of '*':
                 yield if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
-                    index += 1
+                    inc(index)
                     Token(kind: MulEqual)
                 else:
                     Token(kind: Mul)
             of '=':
                 yield if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
-                    index += 1
+                    inc(index)
                     Token(kind: DoubleEqual)
                 else:
                     Token(kind: Equal)
             of '>':
                 yield if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
-                    index += 1
+                    inc(index)
                     Token(kind: BiggerThanEqual)
                 else:
                     Token(kind: BiggerThan)
             of '<':
                 yield if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
-                    index += 1
+                    inc(index)
                     Token(kind: SmallerThanEqual)
                 else:
                     Token(kind: SmallerThan)
@@ -147,7 +147,7 @@ iterator items*(lexer: Lexer): Token {.noSideEffect.} =
                     yield Token(kind: Symbol, value: value)
             else:
                 yield Token(kind: Unknown)
-        index += 1
+        inc(index)
 
 func tokens*(lexer: Lexer): seq[Token] {.noSideEffect.} =
     result = toSeq(lexer)
