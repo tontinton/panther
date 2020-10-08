@@ -1,9 +1,7 @@
 import unittest
 
-import lexer
-import parser
+import frontend
 import ast
-import analyzer
 
 const INPUT = readFile("test.pan")
 
@@ -179,6 +177,4 @@ const EXPECTED_OUTPUT = """
 
 suite "frontend":
     test "sanity":
-        let expression = newParser().parseBlock(newLexer(INPUT).tokens())
-        expression.analyze()
-        check(EXPECTED_OUTPUT == $expression)
+        check(EXPECTED_OUTPUT == $INPUT.parse())
