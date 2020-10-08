@@ -1,10 +1,9 @@
-import tables
-
 type
     TypeKind* = enum
         Undetermined
         Auto
         Signed32
+        Unsigned32
 
     Type* = ref object
         case kind*: TypeKind
@@ -13,7 +12,8 @@ type
         else:
             discard
 
-const TYPES = {
+const BUILTIN_TYPES* = {
     "auto": Auto,
     "s32": Signed32,
-}.toTable
+    "u32": Unsigned32,
+}
