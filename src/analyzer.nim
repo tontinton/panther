@@ -150,6 +150,13 @@ proc analyze(expression: Expression, scope: Scope) =
         scope.add(name, newFunction(paramsDescription, expression.returnType))
         expression.implementation.analyze(functionScope)
 
+        for e in expression.implementation.expressions:
+            if e.kind == Return:
+                let retType = e.retExpr.inferType(scope)
+                if retType != expression.returnType:
+                    raise newException(AnalyzeError,
+                                       fmt"types differ on function return `{name}`, {retType.kind} != {expression.returnType.kind}")
+
     of FunctionCall:
         expression.params.validateKind(Block)
 
