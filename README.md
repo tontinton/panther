@@ -19,14 +19,14 @@ nimble build -d:release
 
 when ``test.pan`` looks like:
 ```nim
-proc fib(n: u32) -> u32:
+proc fib(n: s32) -> s32:
     if n <= 1:
         return n
     else:
         return fib(n - 1) + fib(n - 2)
 
-proc main() -> u32:
-    let x : u32 = 2 + 5 * 8
+proc main() -> s32:
+    let x : s32 = 2 + 5 * 8
     let y = fib(x - 30)  # auto type inference
     if x * y > 100:
         return x + y
@@ -45,11 +45,11 @@ The result is:
       params:
         [
           (
-            type: (kind: Undetermined, value: "u32")
+            type: (kind: Signed32)
             ident: n
           ),
         ]
-      return type: (kind: Undetermined, value: "u32")
+      return type: (kind: Signed32)
       implementation:
         [
           (
@@ -111,14 +111,14 @@ The result is:
       params:
         [
         ]
-      return type: (kind: Undetermined, value: "u32")
+      return type: (kind: Signed32)
       implementation:
         [
           (
             declaration:
               =:
                 asignee:
-                  type: (kind: Undetermined, value: "u32")
+                  type: (kind: Signed32)
                   ident: x
                 value:
                   +:
@@ -135,6 +135,7 @@ The result is:
             declaration:
               =:
                 asignee:
+                  type: (kind: Signed32)
                   ident: y
                 value:
                   function call:

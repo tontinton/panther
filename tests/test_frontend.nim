@@ -3,6 +3,7 @@ import unittest
 import lexer
 import parser
 import ast
+import analyzer
 
 const INPUT = readFile("test.pan")
 
@@ -14,11 +15,11 @@ const EXPECTED_OUTPUT = """
       params:
         [
           (
-            type: (kind: Undetermined, value: "u32")
+            type: (kind: Signed32)
             ident: n
           ),
         ]
-      return type: (kind: Undetermined, value: "u32")
+      return type: (kind: Signed32)
       implementation:
         [
           (
@@ -80,14 +81,14 @@ const EXPECTED_OUTPUT = """
       params:
         [
         ]
-      return type: (kind: Undetermined, value: "u32")
+      return type: (kind: Signed32)
       implementation:
         [
           (
             declaration:
               =:
                 asignee:
-                  type: (kind: Undetermined, value: "u32")
+                  type: (kind: Signed32)
                   ident: x
                 value:
                   +:
@@ -104,6 +105,7 @@ const EXPECTED_OUTPUT = """
             declaration:
               =:
                 asignee:
+                  type: (kind: Signed32)
                   ident: y
                 value:
                   function call:
@@ -178,4 +180,5 @@ const EXPECTED_OUTPUT = """
 suite "frontend":
     test "sanity":
         let expression = newParser().parseBlock(newLexer(INPUT).tokens())
+        expression.analyze()
         check(EXPECTED_OUTPUT == $expression)

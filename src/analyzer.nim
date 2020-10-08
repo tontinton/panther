@@ -1,5 +1,6 @@
 import tables
 import strformat
+import sequtils
 
 import ast
 import types
@@ -14,6 +15,7 @@ type
         functions: TableRef[string, Function]
         types: TableRef[string, Type]
 
+type TypeInferenceError* = object of LibraryError
 type AnalyzeError* = object of LibraryError
 
 func newFunction(params: OrderedTableRef[string, Type], returnType: Type): Function =
@@ -60,13 +62,55 @@ func validateKind(expression: Expression, kind: ExpressionKind) =
     if expression.kind != kind:
         raise newException(AnalyzeError, fmt"got `{kind}`, but expected `{expression.kind}`")
 
-proc `[]=`(scope: Scope, key: string, val: Type) =
+proc add(scope: Scope, key: string, val: Type) =
     scope.validateUnique(key)
     scope.names[key] = val
 
-proc `[]=`(scope: Scope, key: string, val: Function) =
+proc add(scope: Scope, key: string, val: Function) =
     scope.validateUnique(key)
     scope.functions[key] = val
+
+proc validate(t: Type, name: string) =
+    case t.kind:
+    of Auto:
+        raise newException(TypeInferenceError, fmt"could not infer from a non inferred {t.kind} `{name}`")
+    of Undetermined:
+        raise newException(TypeInferenceError, fmt"`{name}` wasn't patched to a valid type")
+    else:
+        discard
+
+proc inferType(expression: Expression, scope: Scope): Type =
+    case expression.kind:
+    of Ident:
+        let name = expression.value
+        try:
+            let t = scope.names[name]
+            t.validate(name)
+            return t
+        except KeyError:
+            raise newException(TypeInferenceError, fmt"the type {name} wasn't declared yet")
+
+    of Literal:
+        return Type(kind: Signed32)
+
+    of BinOp:
+        let leftType = expression.left.inferType(scope)
+        let rightType = expression.right.inferType(scope)
+        if leftType.kind != rightType.kind:
+            raise newException(TypeInferenceError,
+                               fmt"types differ on {expression.operation[]} operation, {leftType.kind} != {rightType.kind}")
+        return leftType
+
+    of FunctionCall:
+        let name = expression.name
+        try:
+            let t = scope.functions[name].returnType
+            t.validate(name)
+            return t
+        except:
+            raise newException(TypeInferenceError, fmt"the type {name} wasn't declared yet")
+    else:
+        raise newException(TypeInferenceError, fmt"could not infer type from {expression[]}")
 
 proc analyze(expression: Expression, scope: Scope) =
     case expression.kind:
@@ -80,14 +124,21 @@ proc analyze(expression: Expression, scope: Scope) =
 
         expression.declParams.validateKind(Block)
 
+        if expression.returnType.kind == Undetermined:
+            let typeName = expression.returnType.value
+            try:
+                expression.returnType = scope.types[typeName]
+            except KeyError:
+                raise newException(AnalyzeError, fmt"the type `{typeName}` wasn't declared yet")
+
         let functionScope = newScopeFromExisting(scope)
         var paramsDescription = newOrderedTable[string, Type]()
 
         for e in expression.declParams.expressions:
             case e.kind:
             of TypedIdent:
-                e.ident.validateKind(Ident)
-                functionScope[e.ident.value] = e.identType
+                e.analyze(scope)
+                functionScope.add(e.ident.value, e.identType)
                 paramsDescription[e.ident.value] = e.identType
             of Ident:
                 raise newException(AnalyzeError, fmt"`{e.value}` has no type")
@@ -96,40 +147,49 @@ proc analyze(expression: Expression, scope: Scope) =
             else:
                 raise newException(AnalyzeError, fmt"{e[]} is an invalid function parameter")
 
-        scope[name] = newFunction(paramsDescription, expression.returnType)
+        scope.add(name, newFunction(paramsDescription, expression.returnType))
         expression.implementation.analyze(functionScope)
 
     of FunctionCall:
         expression.params.validateKind(Block)
-        scope.validateFunctionExists(expression.name)
 
-        let function = scope.functions[expression.name]
+        let name = expression.name
+        scope.validateFunctionExists(name)
+
+        let function = scope.functions[name]
         let paramExpressions = expression.params.expressions
 
         if function.params.len() != paramExpressions.len():
             raise newException(AnalyzeError,
-                               fmt"`{expression.name}` expected {function.params.len()} arguments, got {paramExpressions.len()}")
+                               fmt"`{name}` expected {function.params.len()} arguments, got {paramExpressions.len()}")
 
-        for e in paramExpressions:
-            case e.kind:
+        for (paramExpr, paramType) in zip(paramExpressions, toSeq(function.params.values())):
+            case paramExpr.kind:
             of Ident, Literal, FunctionCall, BinOp:
-                # TODO: validate types
-                e.analyze(scope)
+                let inferredType = paramExpr.inferType(scope)
+                if paramType != paramExpr.inferType(scope):
+                    raise newException(AnalyzeError,
+                                       fmt"types differ on function call `{name}`, {paramType.kind} != {inferredType.kind}")
+                paramExpr.analyze(scope)
             else:
-                raise newException(AnalyzeError, fmt"{e[]} is an invalid function call parameter")
+                raise newException(AnalyzeError, fmt"{paramExpr[]} is an invalid function call parameter")
 
     of Declaration:
         let e = expression.declExpr
 
         case e.kind:
         of Assign:
-            # TODO: type inference
-            case e.assignee.kind:
+            let left = e.assignee
+            let right = e.assignExpr
+
+            case left.kind:
             of Ident:
-                scope[e.assignee.value] = Type(kind: Auto)
+                let t = right.inferType(scope)
+                scope.add(left.value, t)
+                e.assignee = Expression(kind: TypedIdent, identType: t, ident: left)
             of TypedIdent:
-                e.assignee.ident.validateKind(Ident)
-                scope[e.assignee.ident.value] = e.assignee.identType
+                left.analyze(scope)
+                scope.add(left.ident.value, left.identType)
             else:
                 raise newException(AnalyzeError, fmt"cannot assign to {expression.assignee.kind}")
 
@@ -141,6 +201,12 @@ proc analyze(expression: Expression, scope: Scope) =
 
     of TypedIdent:
         expression.ident.validateKind(Ident)
+        if expression.identType.kind == Undetermined:
+            let typeName = expression.identType.value
+            try:
+                expression.identType = scope.types[typeName]
+            except KeyError:
+                raise newException(AnalyzeError, fmt"the type `{typeName}` wasn't declared yet")
 
     of Ident:
         let name = expression.value
@@ -153,6 +219,7 @@ proc analyze(expression: Expression, scope: Scope) =
     of BinOp:
         expression.left.analyze(scope)
         expression.right.analyze(scope)
+        let _ = expression.inferType(scope)
 
     of IfThen:
         expression.condition.analyze(scope)
