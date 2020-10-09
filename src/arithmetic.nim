@@ -17,7 +17,7 @@ type ArithmeticParseError* = object of LibraryError
 
 func getOperationPriority(token: Token): int =
     case token.kind:
-    of Symbol, Number, Str, True, False: 0
+    of And, Or: 0
     of BiggerThan, BiggerThanEqual, SmallerThan, SmallerThanEqual, DoubleEqual: 1
     of Plus, Minus: 2
     of Mul, Div: 3

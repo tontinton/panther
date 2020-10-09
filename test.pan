@@ -13,11 +13,9 @@ proc isFoo(input: string) -> bool:
 proc main() -> s32:
     let x : s32 = 2 + 5 * 8
     let y = fib(x - 30)  # auto type inference
-    if x + 123 * (y + 7) > 100:
+    if x + 123 * (y + 7) > 100 and isFoo("bar"):
         return x + y
     elif x * y < 100:
         return x - y
-    elif isFoo("bar"):
-        return -1
     else:
         return 0

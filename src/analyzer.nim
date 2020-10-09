@@ -4,6 +4,7 @@ import sequtils
 
 import ast
 import types
+import tokens
 
 type
     Function = ref object
@@ -99,7 +100,12 @@ proc inferType(expression: Expression, scope: Scope): Type =
         if leftType.kind != rightType.kind:
             raise newException(TypeInferenceError,
                                fmt"types differ on {expression.operation[]} operation, {leftType.kind} != {rightType.kind}")
-        return leftType
+
+        case expression.operation.kind:
+        of BiggerThan, BiggerThanEqual, SmallerThan, SmallerThanEqual, DoubleEqual, And, Or:
+            return Type(kind: Boolean)
+        else:
+            return leftType
 
     of FunctionCall:
         let name = expression.name

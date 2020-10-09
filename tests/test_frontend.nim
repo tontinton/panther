@@ -171,26 +171,38 @@ const EXPECTED_OUTPUT = """
           ),
           (
             if:
-              >:
+              and:
                 left:
-                  +:
+                  >:
                     left:
-                      ident: x
-                    right:
-                      *:
+                      +:
                         left:
-                          type: (kind: Signed32)
-                          literal: 123
+                          ident: x
                         right:
-                          +:
+                          *:
                             left:
-                              ident: y
-                            right:
                               type: (kind: Signed32)
-                              literal: 7
+                              literal: 123
+                            right:
+                              +:
+                                left:
+                                  ident: y
+                                right:
+                                  type: (kind: Signed32)
+                                  literal: 7
+                    right:
+                      type: (kind: Signed32)
+                      literal: 100
                 right:
-                  type: (kind: Signed32)
-                  literal: 100
+                  function call:
+                    name: isFoo
+                    params:
+                      [
+                        (
+                          type: (kind: String)
+                          literal: bar
+                        ),
+                      ]
             then:
               [
                 (
@@ -226,32 +238,13 @@ const EXPECTED_OUTPUT = """
                   ),
                 ]
               else:
-                if:
-                  function call:
-                    name: isFoo
-                    params:
-                      [
-                        (
-                          type: (kind: String)
-                          literal: bar
-                        ),
-                      ]
-                then:
-                  [
-                    (
-                      return:
-                        type: (kind: Signed32)
-                        literal: -1
-                    ),
-                  ]
-                else:
-                  [
-                    (
-                      return:
-                        type: (kind: Signed32)
-                        literal: 0
-                    ),
-                  ]
+                [
+                  (
+                    return:
+                      type: (kind: Signed32)
+                      literal: 0
+                  ),
+                ]
           ),
         ]
   ),

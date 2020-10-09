@@ -92,6 +92,8 @@ func formatTreeString(expression: Expression, tabs: uint): string =
                        of SmallerThan: "<"
                        of SmallerThanEqual: "<="
                        of DoubleEqual: "=="
+                       of And: "and"
+                       of Or: "or"
                        else: "?"
         let t = tabs.toString()
         fmt"""{t}{operator}:

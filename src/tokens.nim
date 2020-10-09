@@ -41,6 +41,8 @@ type
         BiggerThanEqual
         SmallerThan
         SmallerThanEqual
+        And
+        Or
 
         SmallArrow
 

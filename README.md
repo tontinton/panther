@@ -34,12 +34,10 @@ proc isFoo(input: string) -> bool:
 proc main() -> s32:
     let x : s32 = 2 + 5 * 8
     let y = fib(x - 30)  # auto type inference
-    if x + 123 * (y + 7) > 100:
+    if x + 123 * (y + 7) > 100 and isFoo("bar"):
         return x + y
     elif x * y < 100:
         return x - y
-    elif isFoo("bar"):
-        return -1
     else:
         return 0
 ```
@@ -211,26 +209,38 @@ The result is:
           ),
           (
             if:
-              >:
+              and:
                 left:
-                  +:
+                  >:
                     left:
-                      ident: x
-                    right:
-                      *:
+                      +:
                         left:
-                          type: (kind: Signed32)
-                          literal: 123
+                          ident: x
                         right:
-                          +:
+                          *:
                             left:
-                              ident: y
-                            right:
                               type: (kind: Signed32)
-                              literal: 7
+                              literal: 123
+                            right:
+                              +:
+                                left:
+                                  ident: y
+                                right:
+                                  type: (kind: Signed32)
+                                  literal: 7
+                    right:
+                      type: (kind: Signed32)
+                      literal: 100
                 right:
-                  type: (kind: Signed32)
-                  literal: 100
+                  function call:
+                    name: isFoo
+                    params:
+                      [
+                        (
+                          type: (kind: String)
+                          literal: bar
+                        ),
+                      ]
             then:
               [
                 (
@@ -266,32 +276,13 @@ The result is:
                   ),
                 ]
               else:
-                if:
-                  function call:
-                    name: isFoo
-                    params:
-                      [
-                        (
-                          type: (kind: String)
-                          literal: bar
-                        ),
-                      ]
-                then:
-                  [
-                    (
-                      return:
-                        type: (kind: Signed32)
-                        literal: -1
-                    ),
-                  ]
-                else:
-                  [
-                    (
-                      return:
-                        type: (kind: Signed32)
-                        literal: 0
-                    ),
-                  ]
+                [
+                  (
+                    return:
+                      type: (kind: Signed32)
+                      literal: 0
+                  ),
+                ]
           ),
         ]
   ),

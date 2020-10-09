@@ -293,7 +293,7 @@ proc nextExpression(parser: Parser,
         else:
             raise newException(ParseError, "right side of `=` must be a valid arithmetic expression")
 
-    of Mul, Div, Plus, Minus, BiggerThan, BiggerThanEqual, SmallerThan, SmallerThanEqual, DoubleEqual:
+    of Mul, Div, Plus, Minus, BiggerThan, BiggerThanEqual, SmallerThan, SmallerThanEqual, DoubleEqual, And, Or:
         if prev.isEmpty():
             raise newException(ParseError, fmt"`{token.kind}` cannot be at the beginning of an expression")
 

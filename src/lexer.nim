@@ -163,6 +163,10 @@ iterator items*(lexer: Lexer): Token {.noSideEffect.} =
                     yield Token(kind: True)
                 of "false":
                     yield Token(kind: False)
+                of "and":
+                    yield Token(kind: And)
+                of "or":
+                    yield Token(kind: Or)
                 else:
                     yield Token(kind: Symbol, value: value)
             else:
