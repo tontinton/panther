@@ -324,7 +324,7 @@ proc nextExpression(parser: Parser,
 
         if isRoot:
             state.arithmetic = false
-            return some(tree.shuntingYard())
+            return some(tree.getFixedArithmeticTree())
         else:
             return some(tree)
 

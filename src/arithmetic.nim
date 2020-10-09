@@ -41,7 +41,7 @@ proc getInfix(root: Expression): seq[InfixNode] =
     for node in root.right.getInfix():
         result.add(node)
 
-proc shuntingYard*(root: Expression): Expression =
+proc getFixedArithmeticTree*(root: Expression): Expression =
     ## When the expression is an arithemtic expression tree,
     ## this function repairs the tree order by creating an infix list
     ## representing the arithmetic expression,
