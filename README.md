@@ -34,7 +34,7 @@ proc isFoo(input: string) -> bool:
 proc main() -> s32:
     let x : s32 = 2 + 5 * 8
     let y = fib(x - 30)  # auto type inference
-    if x * y > 100:
+    if x + 123 * (y + 7) > 100:
         return x + y
     elif x * y < 100:
         return x - y
@@ -213,11 +213,21 @@ The result is:
             if:
               >:
                 left:
-                  *:
+                  +:
                     left:
                       ident: x
                     right:
-                      ident: y
+                      *:
+                        left:
+                          type: (kind: Signed32)
+                          literal: 123
+                        right:
+                          +:
+                            left:
+                              ident: y
+                            right:
+                              type: (kind: Signed32)
+                              literal: 7
                 right:
                   type: (kind: Signed32)
                   literal: 100

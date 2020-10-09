@@ -6,6 +6,7 @@ import safeoptions
 import ast
 import tokens
 import types
+import arithmetic
 
 type
     Parser* = ref object
@@ -13,18 +14,21 @@ type
         separator: TokenKind
         stopper: TokenKind
 
-    ParserState* = ref object
+    ParserState = ref object
         tokens: seq[Token]
         index: int
         emptyExpression: Expression
         separator: Option[TokenKind]
+        arithmetic: bool  # Are we currently parsing an arithmetic expression
 
 type ParseError* = object of LibraryError
 
-func newParserState*(tokens: seq[Token]): ParserState =
+func newParserState(tokens: seq[Token]): ParserState =
     ParserState(tokens: tokens,
                 index: 0,
-                emptyExpression: Expression(kind: Empty))
+                emptyExpression: Expression(kind: Empty),
+                separator: none[TokenKind](),
+                arithmetic: false)
 
 func newParser*(indentation: int = 0,
                 separator: TokenKind = NewLine,
@@ -63,14 +67,6 @@ proc nextHead(parser: Parser, state: ParserState): Expression =
     result = Expression(kind: Block, expressions: @[])
     for expression in blockParser.parse(state):
         result.expressions.add(expression)
-
-func getOperationPriority(token: Token): int =
-    case token.kind:
-    of Symbol, Number: 0
-    of BiggerThan, BiggerThanEqual, SmallerThan, SmallerThanEqual, DoubleEqual: 1
-    of Plus, Minus: 2
-    of Mul, Div: 3
-    else: -1
 
 proc nextExpression(parser: Parser,
                     state: ParserState,
@@ -182,7 +178,11 @@ proc nextExpression(parser: Parser,
             let call = Expression(kind: FunctionCall, name: prev.value, params: parser.nextHead(state))
             return parser.nextExpression(state, call)
         else:
-            return some(parser.nextHead(state))
+            let next = parser.nextHead(state)
+            if next.expressions.len() == 1:
+                return parser.nextExpression(state, next.expressions[0])
+            else:
+                return parser.nextExpression(state, next)
 
     of CloseBracket:
         if parser.stopper == CloseBracket:
@@ -298,32 +298,35 @@ proc nextExpression(parser: Parser,
             raise newException(ParseError, fmt"`{token.kind}` cannot be at the beginning of an expression")
 
         case prev.kind:
-        of Ident, Literal, FunctionCall:
+        of Ident, Literal, FunctionCall, BinOp:
             discard
         else:
-            raise newException(ParseError, fmt"left side of `{token.kind}` must be a symbol or a number")
+            raise newException(ParseError, fmt"left side of `{token.kind}` cannot be `{prev.kind}`")
+
+        let isRoot = state.arithmetic == false
+        state.arithmetic = true
 
         let expression = parser.nextExpression(state)
         if expression.isNone() or expression.get().isEmpty():
             raise newException(ParseError, fmt"`{token.kind}` must have an expression after it")
 
         let subtree = expression.get()
-        case subtree.kind:
+
+        let tree = case subtree.kind:
         of BinOp:
-            let subtreePriority = subtree.operation.getOperationPriority()
-            if subtreePriority == -1:
-                raise newException(ParseError, fmt"right side of `{token.kind}` is an invalid binary expression")
-            let priority = token.getOperationPriority()
-            if priority > 0 and subtreePriority > 0 and priority > subtreePriority:
-                # Create a rotated left tree
-                let newLeft = Expression(kind: BinOp, left: prev, operation: token, right: subtree.left)
-                return some(Expression(kind: BinOp, left: newLeft, operation: subtree.operation, right: subtree.right))
-            else:
-                let newRight = Expression(kind: BinOp, left: subtree.left, operation: subtree.operation, right: subtree.right)
-                return some(Expression(kind: BinOp, left: prev, operation: token, right: newRight))
+            let newRight = Expression(kind: BinOp, left: subtree.left, operation: subtree.operation, right: subtree.right)
+            Expression(kind: BinOp, left: prev, operation: token, right: newRight)
         of Ident, Literal, FunctionCall:
-            return some(Expression(kind: BinOp, left: prev, operation: token, right: subtree))
+            Expression(kind: BinOp, left: prev, operation: token, right: subtree)
         else:
-            raise newException(ParseError, fmt"right side of `{token.kind}` must be a symbol, a number or an operation expression")
+            raise newException(ParseError, 
+                               fmt"right side of `{token.kind}` cannot be `{subtree.kind}`")
+
+        if isRoot:
+            state.arithmetic = false
+            return some(tree.shuntingYard())
+        else:
+            return some(tree)
+
     else:
         raise newException(ParseError, fmt"unexpected token: {token[]}")

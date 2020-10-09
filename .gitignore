@@ -1,6 +1,7 @@
 nimcache/
 nimblecache/
 htmldocs/
+.idea
 panther.exe
 panther
 tests/test_frontend.exe

@@ -173,11 +173,21 @@ const EXPECTED_OUTPUT = """
             if:
               >:
                 left:
-                  *:
+                  +:
                     left:
                       ident: x
                     right:
-                      ident: y
+                      *:
+                        left:
+                          type: (kind: Signed32)
+                          literal: 123
+                        right:
+                          +:
+                            left:
+                              ident: y
+                            right:
+                              type: (kind: Signed32)
+                              literal: 7
                 right:
                   type: (kind: Signed32)
                   literal: 100
