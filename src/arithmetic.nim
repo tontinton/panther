@@ -32,16 +32,16 @@ proc addNode(stack: var Stack[Expression], operation: Token) =
     let left = stack.pop()
     stack.push(Expression(kind: BinOp, left: left, operation: operation, right: right))
 
-proc getInfix(root: Expression): seq[InfixNode] = 
+proc infix(root: Expression): seq[InfixNode] = 
     if root.kind != BinOp:
         return @[InfixNode(operation: false, expression: root)]
 
     result.add(InfixNode(operation: false, expression: root.left))
     result.add(InfixNode(operation: true, token: root.operation))
-    for node in root.right.getInfix():
+    for node in root.right.infix():
         result.add(node)
 
-proc getFixedArithmeticTree*(root: Expression): Expression =
+proc fixedArithmeticTree*(root: Expression): Expression =
     ## When the expression is an arithemtic expression tree,
     ## this function repairs the tree order by creating an infix list
     ## representing the arithmetic expression,
@@ -52,7 +52,7 @@ proc getFixedArithmeticTree*(root: Expression): Expression =
     if root.kind != BinOp or root.right.kind != BinOp:
         return root
 
-    var infix = root.getInfix()
+    var infix = root.infix()
 
     var operatorStack = Stack[Token]()
     var operandStack = Stack[Expression]()
