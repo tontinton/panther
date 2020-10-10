@@ -1,3 +1,5 @@
+import frontenderrors
+
 type
     TokenKind* = enum
         Unknown
@@ -47,15 +49,15 @@ type
         SmallArrow
 
     Token* = ref object
-        line*: int
-        lineStart*: int
-        start*: int
-        length*: int
+        errorInfo*: ErrorInfo
 
         case kind*: TokenKind
-        of Symbol, Number, Str:
+        of Symbol, Number, Str, Unknown:
             value*: string
         of Indentation:
             indentation*: int
         else:
             discard
+
+proc error*(token: Token): seq[ErrorInfo] =
+    @[token.errorInfo]

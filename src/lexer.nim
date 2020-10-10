@@ -1,16 +1,27 @@
 import sequtils
 import strutils
 import strformat
-import macros
+import options
 
 import tokens
+import frontenderrors
 
 type
     Lexer* = ref object
         text: string
+        path*: Option[string]
 
 func newLexer*(text: string): Lexer =
-    Lexer(text: text.replace("\r\n", "\n"))
+    Lexer(text: text.replace("\r\n", "\n"), path: none[string]())
+
+proc newLexerFromFile*(path: string): Lexer =
+    Lexer(text: path.readFile().replace("\r\n", "\n"), path: some(path))
+
+func getLine*(lexer: Lexer, lineStartIndex: int): string =
+    var index = lineStartIndex
+    while index < lexer.text.len() and lexer.text[index] != '\n':
+        inc(index)
+    lexer.text[lineStartIndex..index - 1]
 
 func getString(line: string, index: int): string =
     var currentIndex = index
@@ -38,10 +49,6 @@ func getSymbol(line: string, index: int): string =
             break
     line[index..<currentIndex]
 
-macro newToken(args: varargs[untyped]): untyped =
-    quote do:
-        Token(args)
-
 iterator items*(lexer: Lexer): Token =
     var indentationLength = 0
     var inIndentation = true
@@ -50,20 +57,24 @@ iterator items*(lexer: Lexer): Token =
     var lineStart = 0
 
     proc newToken(kind: TokenKind, length: int = 1): Token = 
-        Token(kind: kind, line: line, lineStart: lineStart, start: index, length: length)
+        Token(kind: kind, errorInfo: newErrorInfo(line, lineStart, index - lineStart, length))
+
+    proc newUnknown(value: string): Token =
+        Token(kind: Unknown, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart, value.len()))
 
     proc newSymbol(value: string): Token =
-        Token(kind: Symbol, value: value, line: line, lineStart: lineStart, start: index, length: value.len())
+        Token(kind: Symbol, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart, value.len()))
 
     proc newNumber(value: string): Token =
-        Token(kind: Number, value: value, line: line, lineStart: lineStart, start: index, length: value.len())
+        Token(kind: Number, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart, value.len()))
 
     proc newStr(value: string): Token =
-        Token(kind: Str, value: value, line: line, lineStart: lineStart, start: index - 1, length: value.len() + 2)
+        Token(kind: Str, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart - 1, value.len() + 2))
 
     proc newIndentation(): Token =
-        Token(kind: Indentation, indentation: indentationLength, line: line,
-              lineStart: lineStart, start: index, length: index - lineStart)
+        Token(kind: Indentation,
+              indentation: indentationLength,
+              errorInfo: newErrorInfo(line, lineStart, 0, index - lineStart))
 
     while index < lexer.text.len():
         let c = lexer.text[index]
@@ -173,34 +184,21 @@ iterator items*(lexer: Lexer): Token =
                 let value = getSymbol(lexer.text, index)
                 index += value.len() - 1
                 case value:
-                of "if":
-                    yield newToken(If)
-                of "else":
-                    yield newToken(Else)
-                of "elif":
-                    yield newToken(ElseIf)
-                of "let":
-                    yield newToken(Let)
-                of "proc":
-                    yield newToken(Proc)
-                of "return":
-                    yield newToken(Ret)
-                of "import":
-                    yield newToken(Import)
-                of "pass":
-                    yield newToken(Pass)
-                of "true":
-                    yield newToken(True)
-                of "false":
-                    yield newToken(False)
-                of "and":
-                    yield newToken(And)
-                of "or":
-                    yield newToken(Or)
-                else:
-                    yield newSymbol(value)
+                of "if": yield newToken(If)
+                of "else": yield newToken(Else)
+                of "elif": yield newToken(ElseIf)
+                of "let": yield newToken(Let)
+                of "proc": yield newToken(Proc)
+                of "return": yield newToken(Ret)
+                of "import": yield newToken(Import)
+                of "pass": yield newToken(Pass)
+                of "true": yield newToken(True)
+                of "false": yield newToken(False)
+                of "and": yield newToken(And)
+                of "or": yield newToken(Or)
+                else: yield newSymbol(value)
             else:
-                yield newToken(Unknown)
+                yield newUnknown($c)
         inc(index)
 
 func tokens*(lexer: Lexer): seq[Token] {.noSideEffect.} =
