@@ -47,10 +47,15 @@ type
         SmallArrow
 
     Token* = ref object
+        line*: int
+        lineStart*: int
+        start*: int
+        length*: int
+
         case kind*: TokenKind
         of Symbol, Number, Str:
             value*: string
         of Indentation:
-            length*: int
+            indentation*: int
         else:
             discard

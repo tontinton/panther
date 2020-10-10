@@ -95,9 +95,9 @@ proc nextExpression(parser: Parser,
 
     case token.kind:
     of Indentation:
-        if parser.stopper != Indentation or token.length == parser.indentation:
+        if parser.stopper != Indentation or token.indentation == parser.indentation:
             return parser.nextExpression(state, prev)
-        elif token.length < parser.indentation:
+        elif token.indentation < parser.indentation:
             dec(state.index)
             return none[Expression]()
         else:

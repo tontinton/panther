@@ -21,6 +21,8 @@ type
         Block
 
     Expression* = ref object
+        token*: Token  # Used for error messages
+
         case kind*: ExpressionKind
         of Empty:
             discard
