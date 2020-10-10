@@ -1,4 +1,5 @@
 import unittest
+import options
 
 import frontend
 import ast
@@ -252,4 +253,9 @@ const EXPECTED_OUTPUT = """
 
 suite "frontend":
     test "sanity":
-        check(EXPECTED_OUTPUT == $INPUT.parse())
+        let output = INPUT.parseText()
+        check:
+            output.isSome()
+            EXPECTED_OUTPUT == $output.get()
+
+            "x -> 2".parseText().isNone()

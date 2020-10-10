@@ -1,4 +1,5 @@
 import tables
+import options
 
 import clapfn
 
@@ -13,4 +14,6 @@ argParser.addRequiredArgument("input", "Input file.")
 let args = argParser.parse()
 let input = args["input"]
 
-echo readFile(input).parse()
+let outputAst = input.parseFile()
+if outputAst.isSome():
+    echo outputAst.get()

@@ -1,15 +1,27 @@
 import sequtils
 import strutils
 import strformat
+import options
 
 import tokens
+import frontenderrors
 
 type
     Lexer* = ref object
         text: string
+        path*: Option[string]
 
 func newLexer*(text: string): Lexer =
-    Lexer(text: text.replace("\r\n", "\n"))
+    Lexer(text: text.replace("\r\n", "\n"), path: none[string]())
+
+proc newLexerFromFile*(path: string): Lexer =
+    Lexer(text: path.readFile().replace("\r\n", "\n"), path: some(path))
+
+func getLine*(lexer: Lexer, lineStartIndex: int): string =
+    var index = lineStartIndex
+    while index < lexer.text.len() and lexer.text[index] != '\n':
+        inc(index)
+    lexer.text[lineStartIndex..index - 1]
 
 func getString(line: string, index: int): string =
     var currentIndex = index
@@ -37,10 +49,33 @@ func getSymbol(line: string, index: int): string =
             break
     line[index..<currentIndex]
 
-iterator items*(lexer: Lexer): Token {.noSideEffect.} =
+iterator items*(lexer: Lexer): Token =
     var indentationLength = 0
     var inIndentation = true
     var index = 0
+    var line = 1
+    var lineStart = 0
+
+    proc newToken(kind: TokenKind, length: int = 1): Token = 
+        Token(kind: kind, errorInfo: newErrorInfo(line, lineStart, index - lineStart, length))
+
+    proc newUnknown(value: string): Token =
+        Token(kind: Unknown, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart, value.len()))
+
+    proc newSymbol(value: string): Token =
+        Token(kind: Symbol, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart, value.len()))
+
+    proc newNumber(value: string): Token =
+        Token(kind: Number, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart, value.len()))
+
+    proc newStr(value: string): Token =
+        Token(kind: Str, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart - 1, value.len() + 2))
+
+    proc newIndentation(): Token =
+        Token(kind: Indentation,
+              indentation: indentationLength,
+              errorInfo: newErrorInfo(line, lineStart, 0, index - lineStart))
+
     while index < lexer.text.len():
         let c = lexer.text[index]
         if inIndentation:
@@ -51,126 +86,119 @@ iterator items*(lexer: Lexer): Token {.noSideEffect.} =
                 indentationLength += 4
             else:
                 inIndentation = false
-                yield Token(kind: Indentation, length: indentationLength)
+                yield newIndentation()
                 continue
         else:
             case c:
             of ' ', '\t':
                 discard
             of '\n':
-                yield Token(kind: NewLine)
+                yield newToken(NewLine)
                 inIndentation = true
                 indentationLength = 0
+                inc(line)
+                lineStart = index + 1
             of ',':
-                yield Token(kind: Comma)
+                yield newToken(Comma)
             of ':':
-                yield if index + 1 < lexer.text.len() and lexer.text[index + 1] == '\n':
+                if index + 1 < lexer.text.len() and lexer.text[index + 1] == '\n':
+                    yield newToken(ColonNewLine)
                     inc(index)
-                    Token(kind: ColonNewLine)
+                    inIndentation = true
+                    indentationLength = 0
+                    inc(line)
+                    lineStart = index + 1
                 else:
-                    Token(kind: Colon)
+                    yield newToken(Colon)
             of ';':
-                yield Token(kind: SemiColon)
+                yield newToken(SemiColon)
             of '(':
-                yield Token(kind: OpenBracket)
+                yield newToken(OpenBracket)
             of ')':
-                yield Token(kind: CloseBracket)
+                yield newToken(CloseBracket)
             of '#':
-                yield Token(kind: Pound)
+                yield newToken(Pound)
             of '-':
-                yield if index + 1 < lexer.text.len():
+                if index + 1 < lexer.text.len():
                     case lexer.text[index + 1]:
                     of '>':
+                        yield newToken(SmallArrow, 2)
                         inc(index)
-                        Token(kind: SmallArrow)
                     of '=':
+                        yield newToken(MinusEqual, 2)
                         inc(index)
-                        Token(kind: MinusEqual)
                     of '0'..'9', '.':
-                        inc(index)
-                        let value = getNumber(lexer.text, index)
-                        index += value.len() - 1
-                        Token(kind: Number, value: fmt"-{value}")
+                        let value = getNumber(lexer.text, index + 1)
+                        yield newNumber(fmt"-{value}")
+                        index += value.len()
                     else:
-                        Token(kind: Minus)
+                        yield newToken(Minus)
                 else:
-                    Token(kind: Minus)
+                    yield newToken(Minus)
             of '+':
-                yield if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
+                if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
+                    yield newToken(PlusEqual, 2)
                     inc(index)
-                    Token(kind: PlusEqual)
                 else:
-                    Token(kind: Plus)
+                    yield newToken(Plus)
             of '/':
-                yield if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
+                if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
+                    yield newToken(DivEqual, 2)
                     inc(index)
-                    Token(kind: DivEqual)
                 else:
-                    Token(kind: Div)
+                    yield newToken(Div)
             of '*':
-                yield if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
+                if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
+                    yield newToken(MulEqual, 2)
                     inc(index)
-                    Token(kind: MulEqual)
                 else:
-                    Token(kind: Mul)
+                    yield newToken(Mul)
             of '=':
-                yield if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
+                if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
+                    yield newToken(DoubleEqual, 2)
                     inc(index)
-                    Token(kind: DoubleEqual)
                 else:
-                    Token(kind: Equal)
+                    yield newToken(Equal)
             of '>':
-                yield if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
+                if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
+                    yield newToken(BiggerThanEqual, 2)
                     inc(index)
-                    Token(kind: BiggerThanEqual)
                 else:
-                    Token(kind: BiggerThan)
+                    yield newToken(BiggerThan)
             of '<':
-                yield if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
+                if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
+                    yield newToken(SmallerThanEqual, 2)
                     inc(index)
-                    Token(kind: SmallerThanEqual)
                 else:
-                    Token(kind: SmallerThan)
+                    yield newToken(SmallerThan)
             of '"':
-                let value = getString(lexer.text, index + 1)
-                index += value.len() + 1
-                yield Token(kind: Str, value: value)
+                inc(index)
+                let value = getString(lexer.text, index)
+                yield newStr(value)
+                index += value.len()
             of '0'..'9', '.':
                 let value = getNumber(lexer.text, index)
+                yield newNumber(value)
                 index += value.len() - 1
-                yield Token(kind: Number, value: value)
             of 'A'..'Z', 'a'..'z':
                 let value = getSymbol(lexer.text, index)
                 index += value.len() - 1
                 case value:
-                of "if":
-                    yield Token(kind: If)
-                of "else":
-                    yield Token(kind: Else)
-                of "elif":
-                    yield Token(kind: ElseIf)
-                of "let":
-                    yield Token(kind: Let)
-                of "proc":
-                    yield Token(kind: Proc)
-                of "return":
-                    yield Token(kind: Ret)
-                of "import":
-                    yield Token(kind: Import)
-                of "pass":
-                    yield Token(kind: Pass)
-                of "true":
-                    yield Token(kind: True)
-                of "false":
-                    yield Token(kind: False)
-                of "and":
-                    yield Token(kind: And)
-                of "or":
-                    yield Token(kind: Or)
-                else:
-                    yield Token(kind: Symbol, value: value)
+                of "if": yield newToken(If)
+                of "else": yield newToken(Else)
+                of "elif": yield newToken(ElseIf)
+                of "let": yield newToken(Let)
+                of "proc": yield newToken(Proc)
+                of "return": yield newToken(Ret)
+                of "import": yield newToken(Import)
+                of "pass": yield newToken(Pass)
+                of "true": yield newToken(True)
+                of "false": yield newToken(False)
+                of "and": yield newToken(And)
+                of "or": yield newToken(Or)
+                else: yield newSymbol(value)
             else:
-                yield Token(kind: Unknown)
+                yield newUnknown($c)
         inc(index)
 
 func tokens*(lexer: Lexer): seq[Token] {.noSideEffect.} =

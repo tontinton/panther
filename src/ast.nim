@@ -3,6 +3,7 @@ import strformat
 
 import tokens
 import types
+import frontenderrors
 
 type
     ExpressionKind* = enum
@@ -21,6 +22,8 @@ type
         Block
 
     Expression* = ref object
+        token*: Token  # Used for error messages
+
         case kind*: ExpressionKind
         of Empty:
             discard
@@ -157,3 +160,12 @@ func formatTreeString(expression: Expression, tabs: uint): string =
 
 func `$`*(expression: Expression): string =
     formatTreeString(expression, 0)
+
+proc error*(expression: Expression): seq[ErrorInfo] =
+    case expression.kind:
+    of Block:
+        for subExpression in expression.expressions:
+            for error in subExpression.error:
+                result.add(error)
+    else:
+        result.add(expression.token.error)
