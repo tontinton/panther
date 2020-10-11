@@ -69,7 +69,7 @@ func isEmpty*(expression: Expression): bool =
 func toString(tabs: uint): string =
     "  ".repeat(tabs)
 
-func formatTreeString(expression: Expression, tabs: uint): string =
+func formatTreeString(expression: Expression, tabs: uint = 0): string =
     case expression.kind:
     of Empty:
         fmt"{tabs.toString()}empty"
@@ -159,7 +159,7 @@ func formatTreeString(expression: Expression, tabs: uint): string =
         &"{tabs.toString()}return:\n{expression.retExpr.formatTreeString(tabs + 1)}"
 
 func `$`*(expression: Expression): string =
-    formatTreeString(expression, 0)
+    expression.formatTreeString()
 
 proc error*(expression: Expression): seq[ErrorInfo] =
     case expression.kind:
