@@ -5,6 +5,7 @@ import terminal
 import strutils
 
 import optionsutils
+import stacks
 
 import lexer
 import parser
@@ -12,13 +13,16 @@ import ast
 import analyzer
 import frontenderrors
 
-proc print(e: ParserError, lexer: Lexer) =
-    addExitProc(resetAttributes)
-
+proc printErrorLine(message: string) =
     setForegroundColor(fgRed)
     stdout.write("error: ")
     setForegroundColor(fgWhite)
-    echo e.msg
+    echo message
+
+proc printSingle(e: ParseError, lexer: Lexer) =
+    addExitProc(resetAttributes)
+
+    e.msg.printErrorLine()
 
     for info in e.info:
         let linePrefix = fmt"{info.line} | "
@@ -45,13 +49,26 @@ proc print(e: ParserError, lexer: Lexer) =
 
     resetAttributes()
 
+proc print(e: ParseError, lexer: Lexer) =
+    var errors = Stack[ParseError]()
+    var error = e
+    while not error.isNil():
+        errors.push(error)
+        error = error.next
+
+    echo ""
+    (&"got {errors.len()} compilation errors\n").printErrorLine()
+
+    while not errors.isEmpty():
+        errors.pop().printSingle(lexer)
+
 proc parse(inputLexer: Lexer): Option[Expression] =
     let topLevelParser = newParser()
     try:
         let outputAst = topLevelParser.parseBlock(inputLexer.tokens())
         outputAst.analyze()
         return some(outputAst)
-    except ParserError as e:
+    except ParseError as e:
         e.print(inputLexer)
         return none[Expression]()
 

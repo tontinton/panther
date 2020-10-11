@@ -14,6 +14,7 @@ type
         indentation: int
         separator: TokenKind
         stopper: TokenKind
+        error: ParseError
 
     ParserState = ref object
         tokens: seq[Token]
@@ -32,18 +33,57 @@ func newParserState(tokens: seq[Token]): ParserState =
 func newParser*(indentation: int = 0,
                 separator: TokenKind = NewLine,
                 stopper: TokenKind = Indentation): Parser =
-    Parser(indentation: indentation, separator: separator, stopper: stopper)
+    Parser(indentation: indentation, separator: separator, stopper: stopper, error: nil)
+
+proc addError(parser: Parser, e: ParseError) =
+    if not parser.error.isNil():
+        e.next = parser.error
+    parser.error = e
 
 proc nextExpression(parser: Parser,
                     state: ParserState,
                     prev: Expression = state.emptyExpression,
                     injectToken: Option[Token] = none[Token]()): Option[Expression]
 
+proc nextExpressionOrError(parser: Parser, state: ParserState): Option[Expression] =
+    try:
+        return parser.nextExpression(state)
+    except ParseError as e:
+        while state.index < state.tokens.len():
+            let token = state.tokens[state.index]
+            if token.kind == parser.separator or (token.kind == parser.stopper and parser.stopper != Indentation):
+                break
+            inc(state.index)
+        raise e
+
 iterator parse(parser: Parser, state: ParserState): Expression =
-    var expression = parser.nextExpression(state)
-    while expression.isSome():
-        yield expression.get()
-        expression = parser.nextExpression(state)
+    var expression : Option[Expression]
+
+    var errorRaised = false
+    var keepParsing = true
+
+    try:
+        expression = parser.nextExpressionOrError(state)
+        if expression.isNone():
+            keepParsing = false
+    except ParseError as e:
+        parser.addError(e)
+        errorRaised = true
+
+    while keepParsing:
+        if not errorRaised and expression.isSome():
+            yield expression.get()
+
+        try:
+            expression = parser.nextExpressionOrError(state)
+            if expression.isNone():
+                keepParsing = false
+        except ParseError as e:
+            parser.addError(e)
+            errorRaised = true
+
+    if not parser.error.isNil():
+        raise parser.error
 
 iterator parse*(parser: Parser, tokens: seq[Token]): Expression =
     var state = newParserState(tokens)
@@ -58,14 +98,20 @@ proc parseBlock*(parser: Parser, tokens: seq[Token]): Expression =
 proc nextBlock(parser: Parser, state: ParserState): Expression =
     let blockParser = newParser(indentation = parser.indentation + 4)
     result = Expression(kind: Block, expressions: @[])
-    for expression in blockParser.parse(state):
-        result.expressions.add(expression)
+    try:
+        for expression in blockParser.parse(state):
+            result.expressions.add(expression)
+    except ParseError as e:
+        parser.addError(e)
 
 proc nextHead(parser: Parser, state: ParserState): Expression =
     let blockParser = newParser(separator = Comma, stopper = CloseBracket)
     result = Expression(kind: Block, expressions: @[])
-    for expression in blockParser.parse(state):
-        result.expressions.add(expression)
+    try:
+        for expression in blockParser.parse(state):
+            result.expressions.add(expression)
+    except ParseError as e:
+        parser.addError(e)
 
 proc nextExpression(parser: Parser,
                     state: ParserState,
