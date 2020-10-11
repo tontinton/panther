@@ -8,11 +8,12 @@ type
     Errorable = concept e
         e.error is seq[ErrorInfo]
 
-    ParserError* = ref object of CatchableError
+    ParseError* = ref object of CatchableError
         info*: seq[ErrorInfo]
+        next*: ParseError
 
 func newErrorInfo*(line, lineStart, start, length: int): ErrorInfo =
     ErrorInfo(line: line, lineStart: lineStart, start: start, length: length)
 
-template newParseError*[E: Errorable](e: E, message: string): ParserError =
-    ParserError(info: e.error, msg: message, parent: nil)
+template newParseError*[E: Errorable](e: E, message: string): ParseError =
+    ParseError(info: e.error, next: nil, msg: message, parent: nil)
