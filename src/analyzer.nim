@@ -2,6 +2,7 @@ import tables
 import strformat
 import sequtils
 import options
+import macros
 
 import optionsutils
 
@@ -51,7 +52,7 @@ proc newFunctionScope(scope: Scope, funcName: string): Scope =
     Scope(names: names, functions: functions, types: types, insideFunction: some(funcName))
 
 proc inferType(expression: Expression, scope: Scope): Type =
-    proc validate(t: Type, name: string) =
+    proc validateType(t: Type, name: string) =
         case t.kind:
         of Auto:
             raise newParseError(expression, fmt"could not infer from a non inferred {t.kind} `{name}`")
@@ -65,10 +66,10 @@ proc inferType(expression: Expression, scope: Scope): Type =
         let name = expression.value
         try:
             let t = scope.names[name]
-            t.validate(name)
+            t.validateType(name)
             return t
         except KeyError:
-            raise newParseError(expression, fmt"the type {name} wasn't declared yet")
+            raise newParseError(expression, fmt"the function {name} wasn't declared yet")
 
     of Literal:
         return expression.literalType
@@ -90,10 +91,11 @@ proc inferType(expression: Expression, scope: Scope): Type =
         let name = expression.name
         try:
             let t = scope.functions[name].returnType
-            t.validate(name)
+            t.validateType(name)
             return t
-        except:
-            raise newParseError(expression, fmt"the type {name} wasn't declared yet")
+        except KeyError:
+            raise newParseError(expression, fmt"the function {name} wasn't declared yet")
+
     else:
         raise newParseError(expression, fmt"could not infer type from {expression[]}")
 
@@ -104,6 +106,13 @@ proc analyze(expression: Expression, scope: Scope) =
         if not errors.isNil():
             e.next = errors
         errors = e
+
+    macro withErrorCatching(statement: untyped): untyped =
+        quote do:
+            try:
+                `statement`
+            except ParseError as e:
+                addError(e)
 
     func validateUnique(scope: Scope, name: string) =
         if name in scope.names:
@@ -129,14 +138,12 @@ proc analyze(expression: Expression, scope: Scope) =
         scope.validateUnique(key)
         scope.functions[key] = val
 
-    try:
+    withErrorCatching:
         case expression.kind:
         of Block:
             for exp in expression.expressions:
-                try:
+                withErrorCatching:
                     exp.analyze(scope)
-                except ParseError as e:
-                    addError(e)
 
         of FunctionDeclaration:
             let name = expression.declName
@@ -177,10 +184,8 @@ proc analyze(expression: Expression, scope: Scope) =
         of Return:
             withSome scope.insideFunction:
                 some name:
-                    try:
+                    withErrorCatching:
                         expression.retExpr.analyze(scope)
-                    except ParseError as e:
-                        addError(e)
 
                     scope.validateFunctionExists(name)
 
@@ -268,7 +273,7 @@ proc analyze(expression: Expression, scope: Scope) =
         of IfThen:
             # TODO: optimization: interpret expression to know if the function always returns false
 
-            try:
+            withErrorCatching:
                 case expression.condition.kind:
                 of BinOp, Ident, Literal:
                     discard
@@ -283,8 +288,6 @@ proc analyze(expression: Expression, scope: Scope) =
                     raise newParseError(expression, fmt"got {expression.then.kind}, but expected {Block}")
 
                 expression.condition.analyze(scope)
-            except ParseError as e:
-                addError(e)
 
             expression.then.analyze(scope)
 
@@ -307,8 +310,6 @@ proc analyze(expression: Expression, scope: Scope) =
 
         else:
             discard
-    except ParseError as e:
-        addError(e)
 
     if not errors.isNil():
         raise errors
