@@ -9,7 +9,7 @@ It's main focus is **minimal code size** through code size
 optimizations and compiling directly to a **shellcode** (position independent code).
 
 ## What can it do currently? 
-Currently, the panther binary can only parse a single file to an AST representation.
+Currently, the panther binary can parse a single file to an AST representation, with minimal type inference and type checking.
 
 When running the panther compiler on test.pan
 ```bash
