@@ -4,6 +4,7 @@ type
         Auto
         Signed32
         Unsigned32
+        Float32
         Boolean
         String
 
@@ -18,6 +19,7 @@ const BUILTIN_TYPES* = {
     "auto": Auto,
     "s32": Signed32,
     "u32": Unsigned32,
+    "f32": Float32,
     "bool": Boolean,
     "string": String,
 }

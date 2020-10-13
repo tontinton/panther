@@ -254,6 +254,12 @@ proc nextExpression(parser: Parser,
                                                        literal: token.value,
                                                        token: token))
 
+    of Float:
+        return parser.nextExpression(state, Expression(kind: Literal,
+                                                       literalType: Type(kind: Float32),
+                                                       literal: token.value,
+                                                       token: token))
+
     of Str:
         return parser.nextExpression(state, Expression(kind: Literal,
                                                        literalType: Type(kind: String),

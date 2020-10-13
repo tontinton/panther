@@ -8,6 +8,7 @@ type
 
         Symbol
         Number
+        Float
         Str
 
         If
@@ -53,7 +54,7 @@ type
         errorInfo*: ErrorInfo
 
         case kind*: TokenKind
-        of Symbol, Number, Str, Unknown:
+        of Symbol, Number, Float, Str, Unknown:
             value*: string
         of Indentation:
             indentation*: int

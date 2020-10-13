@@ -66,7 +66,10 @@ iterator items*(lexer: Lexer): Token =
         Token(kind: Symbol, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart, value.len()))
 
     proc newNumber(value: string): Token =
-        Token(kind: Number, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart, value.len()))
+        if "." in value:
+            Token(kind: Float, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart, value.len()))
+        else:
+            Token(kind: Number, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart, value.len()))
 
     proc newStr(value: string): Token =
         Token(kind: Str, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart - 1, value.len() + 2))

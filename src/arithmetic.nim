@@ -30,7 +30,7 @@ func isRightAssociative(token: Token): bool {.inline.} =
 proc addNode(stack: var Stack[Expression], operation: Token) =
     let right = stack.pop()
     let left = stack.pop()
-    stack.push(Expression(kind: BinOp, left: left, operation: operation, right: right))
+    stack.push(Expression(kind: BinOp, left: left, operation: operation, right: right, token: operation))
 
 proc infix(root: Expression): seq[InfixNode] = 
     if root.kind != BinOp:

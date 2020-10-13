@@ -85,7 +85,7 @@ proc inferType(expression: Expression, scope: Scope): Type =
         let rightType = expression.right.inferType(scope)
         if leftType.kind != rightType.kind:
             raise newParseError(expression,
-                                fmt"types differ on {expression.operation[]} operation, {leftType.kind} != {rightType.kind}")
+                                fmt"types differ on {expression.operation.kind} operation, {leftType.kind} != {rightType.kind}")
 
         case expression.operation.kind:
         of BiggerThan, BiggerThanEqual, SmallerThan, SmallerThanEqual, DoubleEqual, And, Or:
