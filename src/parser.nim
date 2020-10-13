@@ -358,7 +358,7 @@ proc nextExpression(parser: Parser,
         let expression = parser.nextExpression(state)
         if expression.isNone() or expression.get().isEmpty():
             raise newParseError(token, fmt"`{token.kind}` must have an expression after it")
-        return some(Expression(kind: Unary, unaryOperation: token, unaryExpr: expression.get(), token: token))
+        return some(Expression(kind: Unary, unaryExpr: expression.get(), token: token))
 
     of Mul, Div, Plus, Minus, BiggerThan, BiggerThanEqual, SmallerThan, SmallerThanEqual, DoubleEqual, And, Or:
         if prev.isEmpty():
@@ -381,7 +381,7 @@ proc nextExpression(parser: Parser,
 
         let tree = case subtree.kind:
         of Ident, Literal, FunctionCall, BinOp, Unary:
-            Expression(kind: BinOp, left: prev, operation: token, right: subtree, token: token)
+            Expression(kind: BinOp, left: prev, right: subtree, token: token)
         else:
             raise newParseError(token, 
                                fmt"right side of `{token.kind}` cannot be `{subtree.kind}`")

@@ -75,19 +75,19 @@ proc inferType(expression: Expression, scope: Scope): Type =
         return expression.literalType
 
     of Unary:
-        if expression.unaryOperation.kind == Not:
+        if expression.token.kind == Not:
             return Type(kind: Boolean)
         else:
-            raise newParseError(expression, fmt"cannot infer {expression.unaryOperation.kind} in a unary expression")
+            raise newParseError(expression, fmt"cannot infer {expression.token.kind} in a unary expression")
 
     of BinOp:
         let leftType = expression.left.inferType(scope)
         let rightType = expression.right.inferType(scope)
         if leftType.kind != rightType.kind:
             raise newParseError(expression,
-                                fmt"types differ on {expression.operation.kind} operation, {leftType.kind} != {rightType.kind}")
+                                fmt"types differ on {expression.token.kind} operation, {leftType.kind} != {rightType.kind}")
 
-        case expression.operation.kind:
+        case expression.token.kind:
         of BiggerThan, BiggerThanEqual, SmallerThan, SmallerThanEqual, DoubleEqual, And, Or:
             return Type(kind: Boolean)
         else:
@@ -276,20 +276,20 @@ proc analyze(expression: Expression, scope: Scope) =
             of Ident, Literal, FunctionCall, BinOp, Unary:
                 expression.unaryExpr.analyze(scope)
             else:
-                raise newParseError(expression, fmt"invalid right side of {expression.unaryOperation.kind}")
+                raise newParseError(expression, fmt"invalid right side of {expression.token.kind}")
 
         of BinOp:
             case expression.left.kind:
             of Ident, Literal, FunctionCall, BinOp, Unary:
                 expression.left.analyze(scope)
             else:
-                raise newParseError(expression, fmt"invalid left side of {expression.operation.kind}")
+                raise newParseError(expression, fmt"invalid left side of {expression.token.kind}")
 
             case expression.right.kind:
             of Ident, Literal, FunctionCall, BinOp, Unary:
                 expression.right.analyze(scope)
             else:
-                raise newParseError(expression, fmt"invalid right side of {expression.operation.kind}")
+                raise newParseError(expression, fmt"invalid right side of {expression.token.kind}")
 
             discard expression.inferType(scope)
 
