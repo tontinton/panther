@@ -196,6 +196,7 @@ iterator items*(lexer: Lexer): Token =
                 of "false": yield newToken(False)
                 of "and": yield newToken(And)
                 of "or": yield newToken(Or)
+                of "not": yield newToken(Not)
                 else: yield newSymbol(value)
             else:
                 yield newUnknown($c)

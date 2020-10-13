@@ -74,6 +74,12 @@ proc inferType(expression: Expression, scope: Scope): Type =
     of Literal:
         return expression.literalType
 
+    of Unary:
+        if expression.unaryOperation.kind == Not:
+            return Type(kind: Boolean)
+        else:
+            raise newParseError(expression, fmt"cannot infer {expression.unaryOperation.kind} in a unary expression")
+
     of BinOp:
         let leftType = expression.left.inferType(scope)
         let rightType = expression.right.inferType(scope)
@@ -265,9 +271,26 @@ proc analyze(expression: Expression, scope: Scope) =
             if not (name in scope.names or name in scope.functions):
                 raise newParseError(expression, fmt"`{name}` wasn't declared yet")
 
+        of Unary:
+            case expression.unaryExpr.kind:
+            of Ident, Literal, FunctionCall, BinOp, Unary:
+                expression.unaryExpr.analyze(scope)
+            else:
+                raise newParseError(expression, fmt"invalid right side of {expression.unaryOperation.kind}")
+
         of BinOp:
-            expression.left.analyze(scope)
-            expression.right.analyze(scope)
+            case expression.left.kind:
+            of Ident, Literal, FunctionCall, BinOp, Unary:
+                expression.left.analyze(scope)
+            else:
+                raise newParseError(expression, fmt"invalid left side of {expression.operation.kind}")
+
+            case expression.right.kind:
+            of Ident, Literal, FunctionCall, BinOp, Unary:
+                expression.right.analyze(scope)
+            else:
+                raise newParseError(expression, fmt"invalid right side of {expression.operation.kind}")
+
             discard expression.inferType(scope)
 
         of IfThen:
@@ -275,7 +298,7 @@ proc analyze(expression: Expression, scope: Scope) =
 
             withErrorCatching:
                 case expression.condition.kind:
-                of BinOp, Ident, Literal:
+                of BinOp, Ident, Literal, Unary:
                     discard
                 of FunctionCall:
                     if expression.condition.inferType(scope).kind != Boolean:

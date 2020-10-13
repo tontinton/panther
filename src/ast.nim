@@ -11,6 +11,7 @@ type
         Ident
         TypedIdent
         Literal
+        Unary
         BinOp
         IfThen
         IfElseThen
@@ -35,6 +36,9 @@ type
         of TypedIdent:
             identType*: Type
             ident*: Expression
+        of Unary:
+            unaryOperation*: Token
+            unaryExpr*: Expression
         of BinOp:
             left*: Expression
             operation*: Token
@@ -83,6 +87,14 @@ func formatTreeString(expression: Expression, tabs: uint = 0): string =
     of Literal:
         let t = tabs.toString()
         &"{tabs.toString()}type: {expression.literalType[]}\n{t}literal: {expression.literal}"
+
+    of Unary:
+        let operator = case expression.unaryOperation.kind:
+                       of Not: "not"
+                       else: "?"
+        let t = tabs.toString()
+        fmt"""{t}{operator}:
+{expression.unaryExpr.formatTreeString(tabs + 1)}"""
 
     of BinOp:
         let operator = case expression.operation.kind:

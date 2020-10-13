@@ -348,12 +348,18 @@ proc nextExpression(parser: Parser,
         else:
             raise newParseError(token, "right side of `=` must be a valid arithmetic expression")
 
+    of Not:
+        let expression = parser.nextExpression(state)
+        if expression.isNone() or expression.get().isEmpty():
+            raise newParseError(token, fmt"`{token.kind}` must have an expression after it")
+        return some(Expression(kind: Unary, unaryOperation: token, unaryExpr: expression.get(), token: token))
+
     of Mul, Div, Plus, Minus, BiggerThan, BiggerThanEqual, SmallerThan, SmallerThanEqual, DoubleEqual, And, Or:
         if prev.isEmpty():
             raise newParseError(token, fmt"`{token.kind}` cannot be at the beginning of an expression")
 
         case prev.kind:
-        of Ident, Literal, FunctionCall, BinOp:
+        of Ident, Literal, FunctionCall, BinOp, Unary:
             discard
         else:
             raise newParseError(token, fmt"left side of `{token.kind}` cannot be `{prev.kind}`")
@@ -368,14 +374,7 @@ proc nextExpression(parser: Parser,
         let subtree = expression.get()
 
         let tree = case subtree.kind:
-        of BinOp:
-            let newRight = Expression(kind: BinOp,
-                                      left: subtree.left,
-                                      operation: subtree.operation,
-                                      right: subtree.right,
-                                      token: token)
-            Expression(kind: BinOp, left: prev, operation: token, right: newRight, token: token)
-        of Ident, Literal, FunctionCall:
+        of Ident, Literal, FunctionCall, BinOp, Unary:
             Expression(kind: BinOp, left: prev, operation: token, right: subtree, token: token)
         else:
             raise newParseError(token, 

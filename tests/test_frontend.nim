@@ -195,15 +195,16 @@ const EXPECTED_OUTPUT = """
                       type: (kind: Signed32)
                       literal: 100
                 right:
-                  function call:
-                    name: isFoo
-                    params:
-                      [
-                        (
-                          type: (kind: String)
-                          literal: bar
-                        ),
-                      ]
+                  not:
+                    function call:
+                      name: isFoo
+                      params:
+                        [
+                          (
+                            type: (kind: String)
+                            literal: bar
+                          ),
+                        ]
             then:
               [
                 (

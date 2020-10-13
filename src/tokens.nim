@@ -45,6 +45,7 @@ type
         SmallerThanEqual
         And
         Or
+        Not
 
         SmallArrow
 
