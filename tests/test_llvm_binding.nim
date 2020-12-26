@@ -5,6 +5,10 @@ import strformat
 
 import llvm
 
+# To let the compiled test find the .so files
+{.passL: "-Wl,-rpath,\\$ORIGIN".}
+{.passL: "-Wl,-rpath,\\$ORIGIN/..".}
+
 suite "llvm_binding":
     test "sanity":
         let context = llvm.getGlobalContext()

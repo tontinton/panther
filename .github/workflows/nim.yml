@@ -27,7 +27,9 @@ jobs:
       uses: jiro4989/setup-nim-action@v1
 
     - name: Build
-      run: nimble build -Y --verbose
+      run: |
+        ln -s $GITHUB_WORKSPACE/libLLVM-11.so /usr/lib
+        nimble build -Y --verbose
 
     - name: Tests
       run: nimble test -Y --verbose
