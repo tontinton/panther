@@ -9,3 +9,4 @@ tests/test_frontend
 tests/test_llvm_binding.exe
 tests/test_llvm_binding
 src/llvm/llvm-11.0.0.src
+output.o
