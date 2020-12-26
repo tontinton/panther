@@ -95,63 +95,63 @@ proc dIBuilderCreateFunction*(d: DIBuilderRef, scope: MetadataRef,
   name: string, linkageName: string, file: MetadataRef, lineNo: cuint,
   ty: MetadataRef, isLocalToUnit: bool, isDefinition: bool, scopeLine: cuint,
   flags: cuint, isOptimized: bool): MetadataRef =
-  dIBuilderCreateFunction(d, scope, name.cstring, name.len, linkageName.cstring,
-  linkageName.len, file, lineNo, ty, isLocalToUnit.Bool, isDefinition.Bool,
+  dIBuilderCreateFunction(d, scope, name.cstring, name.len.csize_t, linkageName.cstring,
+  linkagename.len.csize_t, file, lineNo, ty, isLocalToUnit.Bool, isDefinition.Bool,
   scopeLine, flags.DIFlags, isOptimized.Bool)
 proc dIBuilderCreateBasicType*(
   d: DIBuilderRef, name: string, bits: uint64,
   encoding: cuint, flags: DIFlags = DIFlagZero): MetadataRef =
-  dIBuilderCreateBasicType(d, name.cstring, name.len, bits, encoding, flags)
+  dIBuilderCreateBasicType(d, name.cstring, name.len.csize_t, bits, encoding, flags)
 proc dIBuilderCreatePointerType*(
   d: DIBuilderRef, pointeeTy: MetadataRef, bits: uint64, align: uint32,
   name: string): MetadataRef =
-  dIBuilderCreatePointerType(d, pointeeTy, bits, align, 0, name.cstring, name.len)
+  dIBuilderCreatePointerType(d, pointeeTy, bits, align, 0, name.cstring, name.len.csize_t)
 proc dIBuilderCreateStructType*(
   d: DIBuilderRef, scope: MetadataRef, name: string,
   file: MetadataRef, lineNumber: cuint, sizeBits: uint64,
   alignBits: uint32, flags: cuint, derivedFrom: MetadataRef,
   elements: openArray[MetadataRef], runtimeLang: cuint, vtableHolder: MetadataRef,
   uniqueId: string): MetadataRef =
-  dIBuilderCreateStructType(d, scope, name.cstring, name.len, file, lineNumber,
+  dIBuilderCreateStructType(d, scope, name.cstring, name.len.csize_t, file, lineNumber,
   sizeBits, alignBits, flags.DIFlags, derivedFrom, elements.oaAddr, elements.oaLen,
-  runtimeLang, vtableHolder, uniqueId.cstring, uniqueId.len)
+  runtimeLang, vtableHolder, uniqueId.cstring, uniqueId.len.csize_t)
 proc dIBuilderCreateMemberType*(
   d: DIBuilderRef, scope: MetadataRef, name: string,
   file: MetadataRef, lineNo: cuint, sizeBits: uint64, alignBits: uint32,
   offsetBits: uint64, flags: cuint,
   ty: MetadataRef): MetadataRef =
-  dIBuilderCreateMemberType(d, scope, name.cstring, name.len, file, lineNo,
+  dIBuilderCreateMemberType(d, scope, name.cstring, name.len.csize_t, file, lineNo,
   sizeBits, alignBits, offsetBits, flags.DIFlags, ty)
 proc dIBuilderCreateGlobalVariableExpression*(
   d: DIBuilderRef, context: MetadataRef, name: string,
   linkageName: string, file: MetadataRef, lineNo: cuint, ty: MetadataRef,
   isLocalToUnit: bool, exp: MetadataRef, decl: MetadataRef,
   alignBits: uint32): MetadataRef =
-  dIBuilderCreateGlobalVariableExpression(d, context, name.cstring, name.len,
-  linkageName.cstring, linkageName.len, file, lineNo, ty, isLocalToUnit.Bool,
+  dIBuilderCreateGlobalVariableExpression(d, context, name.cstring, name.len.csize_t,
+  linkageName.cstring, linkagename.len.csize_t, file, lineNo, ty, isLocalToUnit.Bool,
   exp, decl, alignBits)
 
 proc dIBuilderCreateAutoVariable*(
   d: DIBuilderRef, scope: MetadataRef, name: string,
   file: MetadataRef, lineNo: cuint, ty: MetadataRef, alwaysPreserve: bool,
   flags: cuint, alignBits: uint32): MetadataRef =
-  dIBuilderCreateAutoVariable(d, scope, name.cstring, name.len, file, lineNo,
+  dIBuilderCreateAutoVariable(d, scope, name.cstring, name.len.csize_t, file, lineNo,
   ty, alwaysPreserve.Bool, flags.DIFlags, alignBits)
 proc dIBuilderCreateParameterVariable*(
   d: DIBuilderRef, scope: MetadataRef, name: string, argNo: cuint,
   file: MetadataRef, lineNo: cuint, ty: MetadataRef, alwaysPreserve: bool,
   flags: cuint): MetadataRef =
-  dIBuilderCreateParameterVariable(d, scope, name.cstring, name.len, argNo,
+  dIBuilderCreateParameterVariable(d, scope, name.cstring, name.len.csize_t, argNo,
   file, lineNo, ty, alwaysPreserve.Bool, flags.DIFlags)
 proc dIBuilderCreateArrayType*(
   d: DIBuilderRef, size: uint64, alignBits: uint32, ty: MetadataRef,
   subscripts: openArray[MetadataRef]): MetadataRef =
   dIBuilderCreateArrayType(d, size, alignBits, ty, subscripts.oaAddr, subscripts.oaLen)
 proc dIBuilderGetOrCreateArray*(d: DIBuilderRef, p: openArray[MetadataRef]): MetadataRef =
-  dIBuilderGetOrCreateArray(d, p.oaAddr, p.oaLen.csize)
+  dIBuilderGetOrCreateArray(d, p.oaAddr, p.oaLen.csize_t)
 proc addModuleFlag*(
   m: ModuleRef, behavior: ModuleFlagBehavior, key: string, val: MetadataRef) =
-  addModuleFlag(m, behavior, key.cstring, key.len, val)
+  addModuleFlag(m, behavior, key.cstring, key.len.csize_t, val)
 
 # A few helpers to make things more smooth
 
@@ -272,8 +272,8 @@ proc buildInvoke*(a1: BuilderRef; fn: ValueRef;
   asRaw(args, buildInvoke(a1, fn, p, n, then, catch, name))
 
 proc diBuilderCreateFile*(builder: DIBuilderRef, filename: string, directory: string): MetadataRef =
-  diBuilderCreateFile(builder, filename.cstring, filename.len.csize,
-    directory.cstring, directory.len.csize)
+  diBuilderCreateFile(builder, filename.cstring, filename.len.csize_t,
+    directory.cstring, directory.len.csize_t)
 
 template getEnumAttrKind(x: untyped): untyped = getEnumAttributeKindForName(x, x.len)
 
@@ -286,7 +286,7 @@ proc addFuncAttribute*(f: ValueRef, v: AttributeRef) =
   addAttributeAtIndex(f, cast[AttributeIndex](AttributeFunctionIndex), v)
 
 proc getMDKindIDInContext*(c: ContextRef, name: string): cuint =
-  getMDKindIDInContext(c, name.cstring, name.len.cuint)
+  getMDKindIDInContext(c, name.cstring, name.len.csize_t.cuint)
 
 proc createStringAttribute*(c: ContextRef, k, v: string): AttributeRef =
   createStringAttribute(c, k.cstring, k.len.cuint, v.cstring, v.len.cuint)
