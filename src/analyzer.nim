@@ -69,7 +69,7 @@ proc inferType(expression: Expression, scope: Scope): Type =
             t.validateType(name)
             return t
         except KeyError:
-            raise newParseError(expression, fmt"the function {name} wasn't declared yet")
+            raise newParseError(expression, fmt"the variable `{name}` wasn't declared yet")
 
     of Literal:
         return expression.literalType
