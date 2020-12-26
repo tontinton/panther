@@ -3,7 +3,7 @@ import strformat
 import ast
 import llvm_backend
 
-proc compile*(expression: Expression, outputPath: string = "output.o", target: string = "x86_64-unknown-linux-gnu") =
+proc compile*(expression: Expression, outputPath: string, target: string) =
     try:
         let backend = newLLVMBackend()
         backend.feed(expression)

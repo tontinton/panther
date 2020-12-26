@@ -1,22 +1,32 @@
 import tables
 import options
 
-import clapfn
-
 import frontend
 import backend
 import ast
 
-var argParser = ArgumentParser(programName: "panther",
-                               fullName: "Panther lang compiler",
-                               description: "A modern shellcode compiler.",
-                               version: "0.1.0")
-argParser.addRequiredArgument("input", "Input file.")
-let args = argParser.parse()
-let input = args["input"]
+proc printAst(input: string = "main.pan") =
+    let outputAst = input.parseFile()
+    if outputAst.isSome():
+        echo outputAst.get()
 
-let outputAst = input.parseFile()
-if outputAst.isSome():
-    let expression = outputAst.get()
-    echo expression
-    expression.compile()
+proc compileFile(input: string = "main.pan",
+                 output: string = "output.o",
+                 target: string = "x86_64-unknown-linux-gnu") =
+    let outputAst = input.parseFile()
+    if outputAst.isSome():
+        let expression = outputAst.get()
+        expression.compile(output, target)
+
+
+when isMainModule:
+    import cligen
+    dispatchMulti([
+        printAst,
+        doc="print the generated ast of the input file given",
+        cmdName="ast",
+    ], [
+        compileFile,
+        doc="compile the input file given",
+        cmdName="compile",
+    ])

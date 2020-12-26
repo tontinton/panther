@@ -13,4 +13,4 @@ bin           = @["panther"]
 
 requires "nim >= 1.3.7"
 requires "optionsutils == 1.2.0"
-requires "clapfn == 1.0.0"
+requires "cligen == 1.3.2"
