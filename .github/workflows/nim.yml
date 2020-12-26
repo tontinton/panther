@@ -15,9 +15,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
-    - uses: jiro4989/setup-nim-action@v1
+    - name: Checkout github repo (+ download lfs dependencies)
+      uses: actions/checkout@v2
+      with:
+        lfs: true
+
+    - name: Checkout LFS objects
+      run: git lfs checkout
+
+    - name: Setup nim
+      uses: jiro4989/setup-nim-action@v1
+
     - name: Build
       run: nimble build -Y --verbose
+
     - name: Tests
       run: nimble test -Y --verbose
