@@ -1,11 +1,14 @@
-const
-  LLVMLib = "libLLVM-11.dll"
+when defined(windows):
+  const LLVMLib = "libLLVM-11.dll"
+else:
+  const LLVMLib = "libLLVM-11.so"
 
 when defined(staticLLVM):
   {.passL: gorge(LLVMRoot & "sta/bin/llvm-config --libs all").}
 else:
   {.passL: "-L.".}
   {.passL: "-lLLVM-11".}
+  {.passL: "-Wl,-rpath,\\$ORIGIN".}
 
 # Includes and helpers for generated code
 type

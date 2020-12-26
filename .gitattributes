@@ -1,3 +1,2 @@
 libLLVM-11.dll filter=lfs diff=lfs merge=lfs -text
 libLLVM-11.so filter=lfs diff=lfs merge=lfs -text
-llvm/llvm-11.0.0.src.tar.xz filter=lfs diff=lfs merge=lfs -text
