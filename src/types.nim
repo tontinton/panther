@@ -15,8 +15,8 @@ type
         else:
             discard
 
-const BOOLEAN_TRUE* = "t"
-const BOOLEAN_FALSE* = "f"
+const BOOLEAN_TRUE* = "true"
+const BOOLEAN_FALSE* = "false"
 
 const BUILTIN_TYPES* = {
     "auto": Auto,
