@@ -15,6 +15,9 @@ type
         else:
             discard
 
+const BOOLEAN_TRUE* = "t"
+const BOOLEAN_FALSE* = "f"
+
 const BUILTIN_TYPES* = {
     "auto": Auto,
     "s32": Signed32,

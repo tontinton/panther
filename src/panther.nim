@@ -4,6 +4,7 @@ import options
 import clapfn
 
 import frontend
+import backend
 import ast
 
 var argParser = ArgumentParser(programName: "panther",
@@ -16,4 +17,6 @@ let input = args["input"]
 
 let outputAst = input.parseFile()
 if outputAst.isSome():
-    echo outputAst.get()
+    let expression = outputAst.get()
+    echo expression
+    expression.compile()
