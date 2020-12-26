@@ -269,13 +269,13 @@ proc nextExpression(parser: Parser,
     of True:
         return parser.nextExpression(state, Expression(kind: Literal,
                                                        literalType: Type(kind: Boolean),
-                                                       literal: "true",
+                                                       literal: BOOLEAN_TRUE,
                                                        token: token))
 
     of False:
         return parser.nextExpression(state, Expression(kind: Literal,
                                                        literalType: Type(kind: Boolean),
-                                                       literal: "false",
+                                                       literal: BOOLEAN_FALSE,
                                                        token: token))
 
     of ColonNewLine:
