@@ -59,7 +59,7 @@ proc optimize(backend: LLVMBackend) =
     finally:
         fpm.disposePassManager()
 
-proc compile*(backend: LLVMBackend, outputPath: string, target: string) =
+proc prepareCompilation(backend: LLVMBackend) =
     backend.optimize()
 
     initializeAllAsmPrinters()
@@ -67,17 +67,23 @@ proc compile*(backend: LLVMBackend, outputPath: string, target: string) =
     initializeAllTargetInfos()
     initializeAllTargetMCs()
 
+proc getTargetMachine(target: string): llvm.TargetMachineRef =
     var tr: llvm.TargetRef
     discard llvm.getTargetFromTriple(target, tr.addr, nil)
-    let targetMachine = llvm.createTargetMachine(tr, target, "", "",
-                                                 llvm.CodeGenLevelDefault,
-                                                 llvm.RelocPIC,
-                                                 llvm.CodeModelDefault)
+    return llvm.createTargetMachine(tr, target, "", "",
+                                    llvm.CodeGenLevelDefault,
+                                    llvm.RelocPIC,
+                                    llvm.CodeModelDefault)
+
+proc compile*(backend: LLVMBackend, outputPath: string, target: string, outputAsm: bool = false) =
+    backend.prepareCompilation()
+    let targetMachine = target.getTargetMachine()
     var err: cstring
+    let fileType = if outputAsm: llvm.AssemblyFile else: llvm.ObjectFile
     let compilation_failed = llvm.targetMachineEmitToFile(targetMachine,
                                                           backend.module,  # TODO: LLVMVerifyModule
                                                           outputPath,
-                                                          llvm.ObjectFile,
+                                                          fileType,
                                                           cast[cstringArray](addr(err)))
 
     # TODO: extract the shellcode from the object file

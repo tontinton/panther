@@ -14,10 +14,10 @@ Currently, the panther binary can compile a single file using the llvm backend, 
 When running the panther compiler on test.pan
 ```bash
 nimble build -d:release
-./panther a.pan
+./panther c main.pan
 ```
 
-when ``test.pan`` looks like:
+When ``test.pan`` looks like:
 ```nim
 proc fib(a: s32) -> s32:
     if a <= 2:
@@ -29,7 +29,7 @@ proc main() -> s32:
     return fib(a)
 ```
 
-Running `objdump -d output.o`:
+Results in (after running `objdump -d output.o`):
 ```
 output.o:     file format elf64-x86-64
 
