@@ -11,13 +11,13 @@ optimizations and compiling directly to a **shellcode** (position independent co
 ## What can it do currently? 
 Currently, the panther binary can compile a single file using the llvm backend, with minimal type inference and type checking.
 
-When running the panther compiler on test.pan
+When running the panther compiler on main.pan
 ```bash
 nimble build -d:release
 ./panther c main.pan
 ```
 
-When ``test.pan`` looks like:
+When ``main.pan`` looks like:
 ```nim
 proc fib(a: s32) -> s32:
     if a <= 2:
