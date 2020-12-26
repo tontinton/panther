@@ -9,283 +9,57 @@ It's main focus is **minimal code size** through code size
 optimizations and compiling directly to a **shellcode** (position independent code).
 
 ## What can it do currently? 
-Currently, the panther binary can parse a single file to an AST representation, with minimal type inference and type checking.
+Currently, the panther binary can compile a single file using the llvm backend, with minimal type inference and type checking.
 
 When running the panther compiler on test.pan
 ```bash
 nimble build -d:release
-./panther test.pan
+./panther a.pan
 ```
 
 when ``test.pan`` looks like:
 ```nim
-proc fib(n: s32) -> s32:
-    if n <= 1:
-        return n
-    else:
-        return fib(n - 1) + fib(n - 2)
-
-proc isFoo(input: string) -> bool:
-    if input == "foo":
-        return true
-    else:
-        return false
+proc fib(a: s32) -> s32:
+    if a <= 2:
+        return 1
+    return fib(a - 1) + fib(a - 2)
 
 proc main() -> s32:
-    let x : s32 = 2 + 5 * 8
-    let y = fib(x - 30)  # auto type inference
-    if x + 123 * (y + 7) > 100 and not isFoo("bar"):
-        return x + y
-    elif x * y < 100:
-        return x - y
-    else:
-        return 0
+    let a = 50
+    return fib(a)
 ```
 
-The result is:
-```yaml
-[
-  (
-    function:
-      name: fib
-      params:
-        [
-          (
-            type: (kind: Signed32)
-            ident: n
-          ),
-        ]
-      return type: (kind: Signed32)
-      implementation:
-        [
-          (
-            if:
-              <=:
-                left:
-                  ident: n
-                right:
-                  type: (kind: Signed32)
-                  literal: 1
-            then:
-              [
-                (
-                  return:
-                    ident: n
-                ),
-              ]
-            else:
-              [
-                (
-                  return:
-                    +:
-                      left:
-                        function call:
-                          name: fib
-                          params:
-                            [
-                              (
-                                -:
-                                  left:
-                                    ident: n
-                                  right:
-                                    type: (kind: Signed32)
-                                    literal: 1
-                              ),
-                            ]
-                      right:
-                        function call:
-                          name: fib
-                          params:
-                            [
-                              (
-                                -:
-                                  left:
-                                    ident: n
-                                  right:
-                                    type: (kind: Signed32)
-                                    literal: 2
-                              ),
-                            ]
-                ),
-              ]
-          ),
-        ]
-  ),
-  (
-    empty
-  ),
-  (
-    function:
-      name: isFoo
-      params:
-        [
-          (
-            type: (kind: String)
-            ident: input
-          ),
-        ]
-      return type: (kind: Boolean)
-      implementation:
-        [
-          (
-            if:
-              ==:
-                left:
-                  ident: input
-                right:
-                  type: (kind: String)
-                  literal: foo
-            then:
-              [
-                (
-                  return:
-                    type: (kind: Boolean)
-                    literal: true
-                ),
-              ]
-            else:
-              [
-                (
-                  return:
-                    type: (kind: Boolean)
-                    literal: false
-                ),
-              ]
-          ),
-        ]
-  ),
-  (
-    empty
-  ),
-  (
-    function:
-      name: main
-      params:
-        [
-        ]
-      return type: (kind: Signed32)
-      implementation:
-        [
-          (
-            declaration:
-              =:
-                asignee:
-                  type: (kind: Signed32)
-                  ident: x
-                value:
-                  +:
-                    left:
-                      type: (kind: Signed32)
-                      literal: 2
-                    right:
-                      *:
-                        left:
-                          type: (kind: Signed32)
-                          literal: 5
-                        right:
-                          type: (kind: Signed32)
-                          literal: 8
-          ),
-          (
-            declaration:
-              =:
-                asignee:
-                  type: (kind: Signed32)
-                  ident: y
-                value:
-                  function call:
-                    name: fib
-                    params:
-                      [
-                        (
-                          -:
-                            left:
-                              ident: x
-                            right:
-                              type: (kind: Signed32)
-                              literal: 30
-                        ),
-                      ]
-          ),
-          (
-            if:
-              and:
-                left:
-                  >:
-                    left:
-                      +:
-                        left:
-                          ident: x
-                        right:
-                          *:
-                            left:
-                              type: (kind: Signed32)
-                              literal: 123
-                            right:
-                              +:
-                                left:
-                                  ident: y
-                                right:
-                                  type: (kind: Signed32)
-                                  literal: 7
-                    right:
-                      type: (kind: Signed32)
-                      literal: 100
-                right:
-                  not:
-                    function call:
-                      name: isFoo
-                      params:
-                        [
-                          (
-                            type: (kind: String)
-                            literal: bar
-                          ),
-                        ]
-            then:
-              [
-                (
-                  return:
-                    +:
-                      left:
-                        ident: x
-                      right:
-                        ident: y
-                ),
-              ]
-            else:
-              if:
-                <:
-                  left:
-                    *:
-                      left:
-                        ident: x
-                      right:
-                        ident: y
-                  right:
-                    type: (kind: Signed32)
-                    literal: 100
-              then:
-                [
-                  (
-                    return:
-                      -:
-                        left:
-                          ident: x
-                        right:
-                          ident: y
-                  ),
-                ]
-              else:
-                [
-                  (
-                    return:
-                      type: (kind: Signed32)
-                      literal: 0
-                  ),
-                ]
-          ),
-        ]
-  ),
-]
+Running `objdump -d output.o`:
+```
+output.o:     file format elf64-x86-64
+
+
+Disassembly of section .text:
+
+0000000000000000 <^C>:
+   0:   55                      push   %rbp
+   1:   53                      push   %rbx
+   2:   50                      push   %rax
+   3:   89 fb                   mov    %edi,%ebx
+   5:   8d 7b ff                lea    -0x1(%rbx),%edi
+   8:   e8 00 00 00 00          callq  d <^C+0xd>
+   d:   89 c5                   mov    %eax,%ebp
+   f:   83 c3 fe                add    $0xfffffffe,%ebx
+  12:   89 df                   mov    %ebx,%edi
+  14:   e8 00 00 00 00          callq  19 <^C+0x19>
+  19:   01 e8                   add    %ebp,%eax
+  1b:   48 83 c4 08             add    $0x8,%rsp
+  1f:   5b                      pop    %rbx
+  20:   5d                      pop    %rbp
+  21:   c3                      retq
+  22:   66 2e 0f 1f 84 00 00    nopw   %cs:0x0(%rax,%rax,1)
+  29:   00 00 00
+  2c:   0f 1f 40 00             nopl   0x0(%rax)
+
+0000000000000030 <^D>:
+  30:   50                      push   %rax
+  31:   bf 32 00 00 00          mov    $0x32,%edi
+  36:   e8 00 00 00 00          callq  3b <^D+0xb>
+  3b:   59                      pop    %rcx
+  3c:   c3                      retq
 ```
