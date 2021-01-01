@@ -18,11 +18,11 @@ proc printAsm(input: string = "main.pan",
     let outputAst = input.parseFile()
     if outputAst.isSome():
         let expression = outputAst.get()
-        expression.compile(TMP_ASM_FILE, target, outputAsm=true)
-        try:
-            echo readFile(TMP_ASM_FILE)
-        finally:
-            removeFile(TMP_ASM_FILE)
+        if expression.compile(TMP_ASM_FILE, target, outputAsm=true):
+            try:
+                echo readFile(TMP_ASM_FILE)
+            finally:
+                removeFile(TMP_ASM_FILE)
 
 proc compileFile(input: string = "main.pan",
                  output: string = "output.o",
@@ -31,7 +31,7 @@ proc compileFile(input: string = "main.pan",
     let outputAst = input.parseFile()
     if outputAst.isSome():
         let expression = outputAst.get()
-        expression.compile(output, target, outputAsm=assembly)
+        discard expression.compile(output, target, outputAsm=assembly)
 
 when isMainModule:
     import cligen

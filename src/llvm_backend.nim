@@ -7,6 +7,9 @@ import llvm
 import types
 import ast
 import tokens
+import customerrors
+
+const GLOBAL_LEVEL = 0
 
 type
     LLVMBackend* = ref object
@@ -15,6 +18,7 @@ type
         builder: BuilderRef
         types: TableRef[types.TypeKind, llvm.TypeRef]
         variables: TableRef[string, llvm.ValueRef]
+        level: int
 
 proc newLLVMBackend*(): LLVMBackend =
     let context = llvm.getGlobalContext()
@@ -34,9 +38,11 @@ proc newLLVMBackend*(): LLVMBackend =
                 module: module,
                 builder: builder,
                 types: types,
-                variables: newTable[string, llvm.ValueRef]())
+                variables: newTable[string, llvm.ValueRef](),
+                level: GLOBAL_LEVEL)
 
 proc optimize(backend: LLVMBackend) =
+    # TODO: align-all-blocks=1 / align-all-functions=1
     let pmb = llvm.passManagerBuilderCreate()
     # TODO: figure out why setting opt level 2, optimizes recusrion to infinite loops
     pmb.passManagerBuilderSetOptLevel(1)
@@ -88,7 +94,7 @@ proc compile*(backend: LLVMBackend, outputPath: string, target: string, outputAs
 
     # TODO: extract the shellcode from the object file
     if llvm.True == compilation_failed:
-        raise newException(LibraryError, fmt"llvm compilation error: {err}")
+        raise newLLVMError(fmt"llvm compilation error: {err}")
 
 proc createVariable(backend: LLVMBackend, name: string, typ: Type): llvm.ValueRef =
     let llvmType = backend.types[typ.kind]
@@ -97,10 +103,14 @@ proc createVariable(backend: LLVMBackend, name: string, typ: Type): llvm.ValueRe
     let entryBlock = llvmFunc.getEntryBasicBlock()
 
     llvm.positionBuilderAtEnd(backend.builder, entryBlock)
-    let variable = llvm.buildAlloca(backend.builder, llvmType, cast[cstring](name))
+    let variable = llvm.buildAlloca(backend.builder, llvmType, name)
     llvm.positionBuilderAtEnd(backend.builder, pre)
 
     return variable
+
+proc createGlobal(backend: LLVMBackend, name: string, typ: Type): llvm.ValueRef =
+    let llvmType = backend.types[typ.kind]
+    return llvm.addGlobal(backend.module, llvmType, name)
 
 proc isReal(val: llvm.ValueRef): bool =
     case val.typeOfX().getTypeKind():
@@ -108,6 +118,12 @@ proc isReal(val: llvm.ValueRef): bool =
         true
     else:
         false
+
+proc isGlobalScope(backend: LLVMBackend): bool =
+    backend.level == GLOBAL_LEVEL
+
+proc isGlobalVariable(backend: LLVMBackend, val: llvm.ValueRef): bool =
+    llvm.getNamedGlobal(backend.module, val.getValueName()) != nil
 
 proc build(backend: LLVMBackend, expression: Expression): llvm.ValueRef =
     case expression.kind:
@@ -123,19 +139,24 @@ proc build(backend: LLVMBackend, expression: Expression): llvm.ValueRef =
                                  llvm.False)
         of Float32:
             return llvm.constRealOfString(backend.types[expression.literalType.kind],
-                                          cast[cstring](expression.literalType.value))
+                                          expression.literalType.value)
         of Boolean:
             let val = if expression.literalType.value == BOOLEAN_TRUE: 1 else: 0
             return llvm.constInt(backend.types[expression.literalType.kind],
                                  cast[culonglong](val),
                                  llvm.False)
         else:
-            raise newException(LibraryError, fmt"unsupported literal: {expression.literalType.kind}")
+            raise newBackendError(fmt"unsupported literal: {expression.literalType.kind}")
 
     of Ident:
         let name = expression.value
         let variable = backend.variables[name]
-        return llvm.buildLoad(backend.builder, variable, "")
+        if backend.isGlobalScope():
+            # must be a global variable if we are in the global scope.
+            # if not, the frontend has made an error.
+            return variable.getInitializer()
+        else:
+            return llvm.buildLoad(backend.builder, variable, "")
 
     of Declaration:
         let assignExpr = expression.declExpr
@@ -144,7 +165,8 @@ proc build(backend: LLVMBackend, expression: Expression): llvm.ValueRef =
             let typedIdent = assignExpr.assignee
             let ident = typedIdent.ident
             let name = ident.value
-            let variable = backend.createVariable(name, typedIdent.identType)
+            let createVar = if backend.isGlobalScope(): createGlobal else: createVariable
+            let variable = createVar(backend, name, typedIdent.identType)
             backend.variables[name] = variable
             discard backend.build(assignExpr)
             return variable
@@ -156,20 +178,21 @@ proc build(backend: LLVMBackend, expression: Expression): llvm.ValueRef =
     of Assign:
         let left = expression.assignee
         let right = expression.assignExpr
-        case left.kind:
-        of TypedIdent:
-            let ident = left.ident
-            let name = ident.value
-            let variable = backend.variables[name]
-            let variableInit = backend.build(right)
-            return llvm.buildStore(backend.builder, variableInit, variable)
-        of Ident:
-            let name = left.value
-            let variable = backend.variables[name]
-            let variableInit = backend.build(right)
-            return llvm.buildStore(backend.builder, variableInit, variable)
+        let name = case left.kind:
+            of TypedIdent:
+                left.ident.value
+            of Ident:
+                left.value
+            else:
+                raise newBackendError(fmt"unsupported asignee: {expression.token.kind}")
+        let variable = backend.variables[name]
+        let variableInit = backend.build(right)
+        if backend.isGlobalVariable(variable):
+            llvm.setInitializer(variable, variableInit)
+            llvm.setGlobalConstant(variable, llvm.False)
         else:
-            raise newException(LibraryError, fmt"unsupported asignee: {expression.token.kind}")
+            discard llvm.buildStore(backend.builder, variableInit, variable)
+        return variable
 
     of BinOp:
         let left = backend.build(expression.left)
@@ -204,7 +227,7 @@ proc build(backend: LLVMBackend, expression: Expression): llvm.ValueRef =
         of tokens.DoubleEqual:
             return buildCmp(llvm.IntEQ, llvm.RealOEQ)
         else:
-            raise newException(LibraryError, fmt"unsupported binop: {expression.token.kind}")
+            raise newBackendError(fmt"unsupported binop: {expression.token.kind}")
 
     of Unary:
         case expression.token.kind:
@@ -217,7 +240,7 @@ proc build(backend: LLVMBackend, expression: Expression): llvm.ValueRef =
                                     "")
             return llvm.buildZExt(backend.builder, cmp, llvmVal.typeOfX(), "")
         else:
-            raise newException(LibraryError, fmt"unsupported unary: {expression.token.kind}")
+            raise newBackendError(fmt"unsupported unary: {expression.token.kind}")
 
     of FunctionDeclaration:
         let name = expression.declName
@@ -229,11 +252,11 @@ proc build(backend: LLVMBackend, expression: Expression): llvm.ValueRef =
             paramTypes.add(backend.types[exp.identType.kind])
 
         let funcType = llvm.functionType(retType, paramTypes)
-        let llvmFunc = llvm.addFunction(backend.module, cast[cstring](name), funcType)
+        let llvmFunc = llvm.addFunction(backend.module, name, funcType)
 
         var i = 0
         for exp in expression.declParams.expressions:
-            llvmFunc.getParam(cast[cuint](i)).setValueName(cast[cstring](exp.ident.value))
+            llvmFunc.getParam(cast[cuint](i)).setValueName(exp.ident.value)
             inc(i)
 
         let entryBlock = llvm.appendBasicBlockInContext(backend.context, llvmFunc, "entry")
@@ -253,19 +276,21 @@ proc build(backend: LLVMBackend, expression: Expression): llvm.ValueRef =
             backend.variables[name] = variable
             inc(i)
 
+        inc(backend.level)
         let body = backend.build(expression.implementation)  # TODO: LLVMVerifyFunction
+        dec(backend.level)
 
         backend.variables.clear()
-        for key in backend.variables.keys():
+        for key in oldVariables.keys():
             backend.variables[key] = oldVariables[key]
 
         return body
 
     of FunctionCall:
         let name = expression.name
-        let llvmFunc = llvm.getNamedFunction(backend.module, cast[cstring](name))
+        let llvmFunc = llvm.getNamedFunction(backend.module, name)
         if llvmFunc == nil:
-            raise newException(LibraryError, fmt"no function named: {name}")
+            raise newBackendError(fmt"no function named: {name}")
 
         var args: seq[llvm.ValueRef] = @[]
 
@@ -354,7 +379,7 @@ proc build(backend: LLVMBackend, expression: Expression): llvm.ValueRef =
         discard
 
     else:
-        raise newException(LibraryError, fmt"unsupported expression: {expression.kind}")
+        raise newBackendError(fmt"unsupported expression: {expression.kind}")
 
 proc feed*(backend: LLVMBackend, expression: Expression) =
     discard backend.build(expression)
