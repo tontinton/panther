@@ -1,4 +1,4 @@
-import frontenderrors
+import customerrors
 
 type
     TokenKind* = enum

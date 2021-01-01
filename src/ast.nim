@@ -3,7 +3,7 @@ import strformat
 
 import tokens
 import types
-import frontenderrors
+import customerrors
 
 type
     ExpressionKind* = enum

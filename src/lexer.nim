@@ -4,7 +4,7 @@ import strformat
 import options
 
 import tokens
-import frontenderrors
+import customerrors
 
 type
     Lexer* = ref object

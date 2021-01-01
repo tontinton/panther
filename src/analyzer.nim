@@ -9,7 +9,7 @@ import optionsutils
 import ast
 import types
 import tokens
-import frontenderrors
+import customerrors
 
 type
     Function = ref object

@@ -7,7 +7,7 @@ import ast
 import tokens
 import types
 import arithmetic
-import frontenderrors
+import customerrors
 
 type
     Parser* = ref object
