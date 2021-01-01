@@ -1,7 +1,3 @@
-# IN DEVELOPMENT
-
-![Nim](https://github.com/tontinton/panther/workflows/Nim/badge.svg?branch=master)
-
 ## Introduction
 The panther language is a language made for exploitations.
 
@@ -14,7 +10,7 @@ Currently, the panther binary can compile a single file using the llvm backend, 
 When running the panther compiler on main.pan
 ```bash
 nimble build -d:release
-./panther c main.pan
+./panther c -i main.pan
 ```
 
 When ``main.pan`` looks like:
