@@ -96,21 +96,24 @@ proc compile*(backend: LLVMBackend, outputPath: string, target: string, outputAs
     if llvm.True == compilation_failed:
         raise newLLVMError(fmt"llvm compilation error: {err}")
 
+proc getLLVMType(backend: LLVMBackend, typ: Type): llvm.TypeRef =
+    result = backend.types[typ.kind]
+    for i in 0..<typ.ptrLevel:
+        result = llvm.pointerType(result)
+
 proc createVariable(backend: LLVMBackend, name: string, typ: Type): llvm.ValueRef =
-    let llvmType = backend.types[typ.kind]
     let pre = backend.builder.getInsertBlock()
     let llvmFunc = pre.getBasicBlockParent()
     let entryBlock = llvmFunc.getEntryBasicBlock()
 
     llvm.positionBuilderAtEnd(backend.builder, entryBlock)
-    let variable = llvm.buildAlloca(backend.builder, llvmType, name)
+    let variable = llvm.buildAlloca(backend.builder, backend.getLLVMType(typ), name)
     llvm.positionBuilderAtEnd(backend.builder, pre)
 
     return variable
 
 proc createGlobal(backend: LLVMBackend, name: string, typ: Type): llvm.ValueRef =
-    let llvmType = backend.types[typ.kind]
-    return llvm.addGlobal(backend.module, llvmType, name)
+    llvm.addGlobal(backend.module, backend.getLLVMType(typ), name)
 
 proc isReal(val: llvm.ValueRef): bool =
     case val.typeOfX().getTypeKind():
@@ -128,23 +131,21 @@ proc isGlobalVariable(backend: LLVMBackend, val: llvm.ValueRef): bool =
 proc build(backend: LLVMBackend, expression: Expression): llvm.ValueRef =
     case expression.kind:
     of Literal:
+        let llvmType = backend.getLLVMType(expression.literalType) 
         case expression.literalType.kind:
         of Signed32:
-            return llvm.constInt(backend.types[expression.literalType.kind],
+            return llvm.constInt(llvmType,
                                  cast[culonglong](parseInt(expression.literal)),
                                  llvm.True)
         of Unsigned32:
-            return llvm.constInt(backend.types[expression.literalType.kind],
+            return llvm.constInt(llvmType,
                                  cast[culonglong](parseInt(expression.literal)),
                                  llvm.False)
         of Float32:
-            return llvm.constRealOfString(backend.types[expression.literalType.kind],
-                                          expression.literalType.value)
+            return llvm.constRealOfString(llvmType, expression.literalType.value)
         of Boolean:
             let val = if expression.literalType.value == BOOLEAN_TRUE: 1 else: 0
-            return llvm.constInt(backend.types[expression.literalType.kind],
-                                 cast[culonglong](val),
-                                 llvm.False)
+            return llvm.constInt(llvmType, cast[culonglong](val), llvm.False)
         else:
             raise newBackendError(fmt"unsupported literal: {expression.literalType.kind}")
 
@@ -245,11 +246,11 @@ proc build(backend: LLVMBackend, expression: Expression): llvm.ValueRef =
     of FunctionDeclaration:
         let name = expression.declName
 
-        let retType = backend.types[expression.returnType.kind]
+        let retType = backend.getLLVMType(expression.returnType)
         var paramTypes: seq[llvm.TypeRef] = @[]
 
         for exp in expression.declParams.expressions:
-            paramTypes.add(backend.types[exp.identType.kind])
+            paramTypes.add(backend.getLLVMType(exp.identType))
 
         let funcType = llvm.functionType(retType, paramTypes)
         let llvmFunc = llvm.addFunction(backend.module, name, funcType)
