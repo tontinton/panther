@@ -113,6 +113,12 @@ proc nextHead(parser: Parser, state: ParserState): Expression =
     except ParseError as e:
         parser.addError(e)
 
+proc buildUndeterminedType(state: ParserState, typeToken: Token): Type =
+    let startIndex = state.index
+    while state.index < state.tokens.len() and state.tokens[state.index].kind == Mul:
+        inc(state.index)
+    Type(kind: Undetermined, value: typeToken.value, ptrLevel: state.index - startIndex)
+
 proc nextExpression(parser: Parser,
                     state: ParserState,
                     prev: Expression = state.emptyExpression,
@@ -176,10 +182,11 @@ proc nextExpression(parser: Parser,
                 let typeToken = state.tokens[state.index]
                 inc(state.index)
 
-                return parser.nextExpression(state, Expression(kind: TypedIdent,
-                                                               identType: Type(kind: Undetermined, value: typeToken.value),
-                                                               ident: prev,
-                                                               token: token))
+                let exp = Expression(kind: TypedIdent,
+                                     identType: buildUndeterminedType(state, typeToken),
+                                     ident: prev,
+                                     token: token)
+                return parser.nextExpression(state, exp)
             else:
                 raise newParseError(token, "expected a type after `:`")
 
@@ -199,15 +206,17 @@ proc nextExpression(parser: Parser,
                 let typeToken = state.tokens[state.index]
                 inc(state.index)
 
+                let returnType = buildUndeterminedType(state, typeToken)
+
                 expression = parser.nextExpression(state)
                 withSome expression:
                     some procBlock:
                         return some(Expression(kind: FunctionDeclaration,
-                                                declName: head.name,
-                                                declParams: head.params,
-                                                returnType: Type(kind: Undetermined, value: typeToken.value),
-                                                implementation: procBlock,
-                                                token: token))
+                                               declName: head.name,
+                                               declParams: head.params,
+                                               returnType: returnType,
+                                               implementation: procBlock,
+                                               token: token))
                     none:
                         raise newParseError(token, fmt"expected an implementation for {head.name}")
             else:

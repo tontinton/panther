@@ -80,11 +80,11 @@ func formatTreeString(expression: Expression, tabs: uint = 0): string =
         fmt"{tabs.toString()}ident: {expression.value}"
 
     of TypedIdent:
-        &"{tabs.toString()}type: {expression.identType[]}\n{expression.ident.formatTreeString(tabs)}"
+        &"{tabs.toString()}type: {expression.identType}\n{expression.ident.formatTreeString(tabs)}"
 
     of Literal:
         let t = tabs.toString()
-        &"{tabs.toString()}type: {expression.literalType[]}\n{t}literal: {expression.literal}"
+        &"{tabs.toString()}type: {expression.literalType}\n{t}literal: {expression.literal}"
 
     of Unary:
         let operator = case expression.token.kind:
@@ -147,7 +147,7 @@ func formatTreeString(expression: Expression, tabs: uint = 0): string =
   {t}name: {expression.declName}
   {t}params:
 {expression.declParams.formatTreeString(tabs + 2)}
-  {t}return type: {expression.returnType[]}
+  {t}return type: {expression.returnType}
   {t}implementation:
 {expression.implementation.formatTreeString(tabs + 2)}"""
 
@@ -179,3 +179,4 @@ proc error*(expression: Expression): seq[ErrorInfo] =
                 result.add(error)
     else:
         result.add(expression.token.error)
+    

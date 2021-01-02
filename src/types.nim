@@ -1,3 +1,6 @@
+import strutils
+
+
 type
     TypeKind* = enum
         Undetermined
@@ -9,6 +12,7 @@ type
         String
 
     Type* = ref object
+        ptrLevel*: int  # type* == 1, type*** == 3
         case kind*: TypeKind
         of Undetermined:
             value*: string
@@ -26,3 +30,9 @@ const BUILTIN_TYPES* = {
     "bool": Boolean,
     "string": String,
 }
+
+proc `$`*(t: Type): string =
+    $(t.kind) & "*".repeat(t.ptrLevel)
+
+proc `==`*(t1, t2: Type): bool =
+    t1.kind == t2.kind and t1.ptrLevel == t2.ptrLevel

@@ -14,11 +14,11 @@ const EXPECTED_OUTPUT = """
       params:
         [
           (
-            type: (kind: Signed32)
+            type: Signed32
             ident: n
           ),
         ]
-      return type: (kind: Signed32)
+      return type: Signed32
       implementation:
         [
           (
@@ -27,7 +27,7 @@ const EXPECTED_OUTPUT = """
                 left:
                   ident: n
                 right:
-                  type: (kind: Signed32)
+                  type: Signed32
                   literal: 1
             then:
               [
@@ -51,7 +51,7 @@ const EXPECTED_OUTPUT = """
                                   left:
                                     ident: n
                                   right:
-                                    type: (kind: Signed32)
+                                    type: Signed32
                                     literal: 1
                               ),
                             ]
@@ -65,7 +65,7 @@ const EXPECTED_OUTPUT = """
                                   left:
                                     ident: n
                                   right:
-                                    type: (kind: Signed32)
+                                    type: Signed32
                                     literal: 2
                               ),
                             ]
@@ -83,11 +83,11 @@ const EXPECTED_OUTPUT = """
       params:
         [
           (
-            type: (kind: String)
+            type: String
             ident: input
           ),
         ]
-      return type: (kind: Boolean)
+      return type: Boolean
       implementation:
         [
           (
@@ -96,13 +96,13 @@ const EXPECTED_OUTPUT = """
                 left:
                   ident: input
                 right:
-                  type: (kind: String)
+                  type: String
                   literal: foo
             then:
               [
                 (
                   return:
-                    type: (kind: Boolean)
+                    type: Boolean
                     literal: true
                 ),
               ]
@@ -110,7 +110,7 @@ const EXPECTED_OUTPUT = """
               [
                 (
                   return:
-                    type: (kind: Boolean)
+                    type: Boolean
                     literal: false
                 ),
               ]
@@ -126,34 +126,34 @@ const EXPECTED_OUTPUT = """
       params:
         [
         ]
-      return type: (kind: Signed32)
+      return type: Signed32
       implementation:
         [
           (
             declaration:
               =:
                 asignee:
-                  type: (kind: Signed32)
+                  type: Signed32
                   ident: x
                 value:
                   +:
                     left:
-                      type: (kind: Signed32)
+                      type: Signed32
                       literal: 2
                     right:
                       *:
                         left:
-                          type: (kind: Signed32)
+                          type: Signed32
                           literal: 5
                         right:
-                          type: (kind: Signed32)
+                          type: Signed32
                           literal: 8
           ),
           (
             declaration:
               =:
                 asignee:
-                  type: (kind: Signed32)
+                  type: Signed32
                   ident: y
                 value:
                   function call:
@@ -165,7 +165,7 @@ const EXPECTED_OUTPUT = """
                             left:
                               ident: x
                             right:
-                              type: (kind: Signed32)
+                              type: Signed32
                               literal: 30
                         ),
                       ]
@@ -182,17 +182,17 @@ const EXPECTED_OUTPUT = """
                         right:
                           *:
                             left:
-                              type: (kind: Signed32)
+                              type: Signed32
                               literal: 123
                             right:
                               +:
                                 left:
                                   ident: y
                                 right:
-                                  type: (kind: Signed32)
+                                  type: Signed32
                                   literal: 7
                     right:
-                      type: (kind: Signed32)
+                      type: Signed32
                       literal: 100
                 right:
                   not:
@@ -201,7 +201,7 @@ const EXPECTED_OUTPUT = """
                       params:
                         [
                           (
-                            type: (kind: String)
+                            type: String
                             literal: bar
                           ),
                         ]
@@ -226,7 +226,7 @@ const EXPECTED_OUTPUT = """
                       right:
                         ident: y
                   right:
-                    type: (kind: Signed32)
+                    type: Signed32
                     literal: 100
               then:
                 [
@@ -243,7 +243,7 @@ const EXPECTED_OUTPUT = """
                 [
                   (
                     return:
-                      type: (kind: Signed32)
+                      type: Signed32
                       literal: 0
                   ),
                 ]

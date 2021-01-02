@@ -28,7 +28,7 @@ func newFunction(params: OrderedTableRef[string, Type], returnType: Type): Funct
 func newGlobalScope(): Scope =
     var types = newTable[string, Type]()
     for (key, val) in BUILTIN_TYPES:
-        types[key] = Type(kind: val)
+        types[key] = Type(kind: val, ptrLevel: 0)
 
     Scope(names: newTable[string, Type](),
           functions: newTable[string, Function](),
@@ -71,6 +71,9 @@ proc inferType(expression: Expression, scope: Scope): Type =
         except KeyError:
             raise newParseError(expression, fmt"the variable `{name}` wasn't declared yet")
 
+    of TypedIdent:
+        return expression.identType
+
     of Literal:
         return expression.literalType
 
@@ -83,9 +86,9 @@ proc inferType(expression: Expression, scope: Scope): Type =
     of BinOp:
         let leftType = expression.left.inferType(scope)
         let rightType = expression.right.inferType(scope)
-        if leftType.kind != rightType.kind:
+        if leftType != rightType:
             raise newParseError(expression,
-                                fmt"types differ on {expression.token.kind} operation, {leftType.kind} != {rightType.kind}")
+                                fmt"types differ on {expression.token.kind} operation, {leftType} != {rightType}")
 
         case expression.token.kind:
         of BiggerThan, BiggerThanEqual, SmallerThan, SmallerThanEqual, DoubleEqual, And, Or:
@@ -101,6 +104,14 @@ proc inferType(expression: Expression, scope: Scope): Type =
             return t
         except KeyError:
             raise newParseError(expression, fmt"the function {name} wasn't declared yet")
+
+    of Assign:
+        let leftType = expression.assignee.inferType(scope)
+        let rightType = expression.assignExpr.inferType(scope)
+        if leftType != rightType:
+            raise newParseError(expression,
+                                fmt"types differ on {expression.token.kind} operation, {leftType} != {rightType}")
+        return leftType
 
     else:
         raise newParseError(expression, fmt"could not infer type from {expression[]}")
@@ -197,10 +208,10 @@ proc analyze(expression: Expression, scope: Scope) =
 
                     let retType = scope.functions[name].returnType
                     let inferredType = expression.retExpr.inferType(scope)
-                    if inferredType.kind != retType.kind:    
+                    if inferredType != retType:    
                         # TODO: add the function declaration expression to the error message somehow
                         raise newParseError(expression,
-                                            fmt"return type of `{name}` differs, {retType.kind} != {inferredType.kind}")
+                                            fmt"return type of `{name}` differs, {retType} != {inferredType}")
                 none:
                     raise newParseError(expression, "cannot return from global scope")
 
@@ -222,9 +233,9 @@ proc analyze(expression: Expression, scope: Scope) =
                 case paramExpr.kind:
                 of Ident, Literal, FunctionCall, BinOp:
                     let inferredType = paramExpr.inferType(scope)
-                    if paramType.kind != paramExpr.inferType(scope).kind:
+                    if paramType != paramExpr.inferType(scope):
                         raise newParseError(expression,
-                                            fmt"types differ on function call `{name}`, {paramType.kind} != {inferredType.kind}")
+                                            fmt"types differ on function call `{name}`, {paramType} != {inferredType}")
                     paramExpr.analyze(scope)
                 else:
                     raise newParseError(expression, fmt"{paramExpr[]} is an invalid function call parameter")
@@ -241,7 +252,10 @@ proc analyze(expression: Expression, scope: Scope) =
                 of Ident:
                     let t = right.inferType(scope)
                     scope.add(left.value, t)
-                    declExpr.assignee = Expression(kind: TypedIdent, identType: t, ident: left)
+                    declExpr.assignee = Expression(kind: TypedIdent,
+                                                   identType: t,
+                                                   ident: left,
+                                                   token: left.token)
                 of TypedIdent:
                     left.analyze(scope)
                     scope.add(left.ident.value, left.identType)
@@ -258,8 +272,10 @@ proc analyze(expression: Expression, scope: Scope) =
             expression.ident.validateKind(Ident)
             if expression.identType.kind == Undetermined:
                 let typeName = expression.identType.value
+                let ptrLevel = expression.identType.ptrLevel
                 try:
-                    expression.identType = scope.types[typeName]
+                    expression.identType = Type(kind: scope.types[typeName].kind,
+                                                ptrLevel:ptrLevel)
                 except KeyError:
                     raise newParseError(expression, fmt"the type `{typeName}` wasn't declared yet")
 
@@ -294,16 +310,10 @@ proc analyze(expression: Expression, scope: Scope) =
             discard expression.inferType(scope)
 
         of IfThen:
-            # TODO: optimization: interpret expression to know if the function always returns false
-
             withErrorCatching:
                 case expression.condition.kind:
                 of BinOp, Ident, Literal, Unary:
                     discard
-                of FunctionCall:
-                    if expression.condition.inferType(scope).kind != Boolean:
-                        raise newParseError(expression,
-                                            "only boolean returning functions are valid inside an if statement currently")
                 else:
                     raise newParseError(expression, fmt"invalid condition expression on if statement")
 
@@ -330,6 +340,8 @@ proc analyze(expression: Expression, scope: Scope) =
                 expression.assignExpr.analyze(scope)
             else:
                 raise newParseError(expression, fmt"cannot assign from {expression.assignExpr.kind}")
+
+            discard expression.inferType(scope)
 
         else:
             discard
