@@ -358,7 +358,7 @@ proc nextExpression(parser: Parser,
 
         let subtree = expression.get()
         case subtree.kind:
-        of BinOp, Ident, Literal, FunctionCall:
+        of Ident, Literal, FunctionCall, BinOp, Unary:
             return some(Expression(kind: Assign, assignee: prev, assignExpr: subtree, token: token))
         else:
             raise newParseError(token, "right side of `=` must be a valid arithmetic expression")
