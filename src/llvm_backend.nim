@@ -240,6 +240,13 @@ proc build(backend: LLVMBackend, expression: Expression): llvm.ValueRef =
                                     llvm.constInt(llvmVal.typeOfX(), 0, llvm.False),
                                     "")
             return llvm.buildZExt(backend.builder, cmp, llvmVal.typeOfX(), "")
+        of Ampersand:
+            let right = expression.unaryExpr
+            case right.kind:
+            of Ident:
+                return backend.variables[right.value]
+            else:
+                raise newBackendError(fmt"unsupported expression to {expression.token.kind} unary: {right.kind}")
         else:
             raise newBackendError(fmt"unsupported unary: {expression.token.kind}")
 
