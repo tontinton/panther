@@ -47,6 +47,7 @@ type
         And
         Or
         Not
+        Ampersand
 
         SmallArrow
 

@@ -36,3 +36,6 @@ proc `$`*(t: Type): string =
 
 proc `==`*(t1, t2: Type): bool =
     t1.kind == t2.kind and t1.ptrLevel == t2.ptrLevel
+
+proc reference*(t: Type): Type =
+    Type(kind: t.kind, ptrLevel: t.ptrLevel + 1)

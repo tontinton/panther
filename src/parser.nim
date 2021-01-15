@@ -363,7 +363,7 @@ proc nextExpression(parser: Parser,
         else:
             raise newParseError(token, "right side of `=` must be a valid arithmetic expression")
 
-    of Not:
+    of Not, Ampersand:
         let expression = parser.nextExpression(state)
         if expression.isNone() or expression.get().isEmpty():
             raise newParseError(token, fmt"`{token.kind}` must have an expression after it")

@@ -121,6 +121,8 @@ iterator items*(lexer: Lexer): Token =
                 yield newToken(CloseBracket)
             of '#':
                 yield newToken(Pound)
+            of '&':
+                yield newToken(Ampersand)
             of '-':
                 if index + 1 < lexer.text.len():
                     case lexer.text[index + 1]:

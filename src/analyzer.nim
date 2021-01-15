@@ -78,8 +78,11 @@ proc inferType(expression: Expression, scope: Scope): Type =
         return expression.literalType
 
     of Unary:
-        if expression.token.kind == Not:
+        case expression.token.kind:
+        of Not:
             return Type(kind: Boolean)
+        of Ampersand:
+            return expression.unaryExpr.inferType(scope).reference()
         else:
             raise newParseError(expression, fmt"cannot infer {expression.token.kind} in a unary expression")
 
@@ -288,11 +291,19 @@ proc analyze(expression: Expression, scope: Scope) =
                 raise newParseError(expression, fmt"`{name}` wasn't declared yet")
 
         of Unary:
-            case expression.unaryExpr.kind:
-            of Ident, Literal, FunctionCall, BinOp, Unary:
-                expression.unaryExpr.analyze(scope)
+            case expression.token.kind:
+            of Ampersand:
+                case expression.unaryExpr.kind:
+                of Ident:
+                    expression.unaryExpr.analyze(scope)
+                else:
+                    raise newParseError(expression, fmt"right side of {expression.token.kind} is not a variable")
             else:
-                raise newParseError(expression, fmt"invalid right side of {expression.token.kind}")
+                case expression.unaryExpr.kind:
+                of Ident, Literal, FunctionCall, BinOp, Unary:
+                    expression.unaryExpr.analyze(scope)
+                else:
+                    raise newParseError(expression, fmt"invalid right side of {expression.token.kind}")
 
         of BinOp:
             case expression.left.kind:
@@ -312,7 +323,7 @@ proc analyze(expression: Expression, scope: Scope) =
         of IfThen:
             withErrorCatching:
                 case expression.condition.kind:
-                of BinOp, Ident, Literal, Unary:
+                of Ident, Literal, FunctionCall, BinOp, Unary:
                     discard
                 else:
                     raise newParseError(expression, fmt"invalid condition expression on if statement")
@@ -336,7 +347,7 @@ proc analyze(expression: Expression, scope: Scope) =
                 raise newParseError(expression, fmt"cannot assign to {expression.assignee.kind}")
 
             case expression.assignExpr.kind:
-            of BinOp, Ident, Literal, FunctionCall:
+            of Ident, Literal, FunctionCall, BinOp, Unary:
                 expression.assignExpr.analyze(scope)
             else:
                 raise newParseError(expression, fmt"cannot assign from {expression.assignExpr.kind}")
