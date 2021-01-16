@@ -180,8 +180,16 @@ proc analyze(expression: Expression, scope: Scope) =
     withErrorCatching:
         case expression.kind:
         of Block:
+            var returnFound = false
             for exp in expression.expressions:
                 withErrorCatching:
+                    if returnFound:
+                        # TODO: Show the return expression as well in the error message
+                        # TODO: Show all expression after return in a single error message 
+                        raise newParseError(exp, fmt"cannot have an expression after {Return}")
+                    if exp.kind == Return:
+                        returnFound = true
+
                     exp.analyze(scope)
 
         of FunctionDeclaration:
