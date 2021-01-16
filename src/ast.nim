@@ -181,4 +181,3 @@ proc error*(expression: Expression): seq[ErrorInfo] =
                 result.add(error)
     else:
         result.add(expression.token.error)
-    

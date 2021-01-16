@@ -8,7 +8,6 @@ proc fib(a: s32) -> s32:
 
 proc set(ptr: s32*, val: s32):
     *ptr = val
-    return
 
 proc main() -> s32:
     let test = &ITERATIONS_DOUBLED

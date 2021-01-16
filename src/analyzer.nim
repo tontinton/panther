@@ -51,6 +51,17 @@ proc newFunctionScope(scope: Scope, funcName: string): Scope =
 
     Scope(names: names, functions: functions, types: types, insideFunction: some(funcName))
 
+proc defaultExpression(typ: Type, token: Token): Expression =
+    case typ.kind:
+    of Signed32, Unsigned32, Float32:
+        return Expression(kind: Literal, literalType: typ, literal: "0", token: token)
+    of String:
+        return Expression(kind: Literal, literalType: typ, literal: "", token: token)
+    of Boolean:
+        return Expression(kind: Literal, literalType: typ, literal: BOOLEAN_FALSE, token: token)
+    else:
+        return Expression(kind: Empty)
+
 proc inferType(expression: Expression, scope: Scope): Type =
     proc validateType(t: Type, name: string) =
         case t.kind:
@@ -208,6 +219,13 @@ proc analyze(expression: Expression, scope: Scope) =
             functionScope.add(name, funcDescription)
     
             expression.implementation.analyze(functionScope)
+            let expressions = expression.implementation.expressions
+            if expressions.len() == 0 or expressions[expressions.len() - 1].kind != Return:
+                let whatToReturn = expression.returnType.defaultExpression(expression.token)
+                let returnExpression = Expression(kind: Return,
+                                                  retExpr: whatToReturn,
+                                                  token: expression.token)
+                expression.implementation.expressions.add(returnExpression)
 
         of Return:
             withSome scope.insideFunction:
