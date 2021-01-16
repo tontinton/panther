@@ -39,3 +39,6 @@ proc `==`*(t1, t2: Type): bool =
 
 proc reference*(t: Type): Type =
     Type(kind: t.kind, ptrLevel: t.ptrLevel + 1)
+
+proc dereference*(t: Type): Type =
+    Type(kind: t.kind, ptrLevel: t.ptrLevel - 1)

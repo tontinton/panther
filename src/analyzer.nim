@@ -83,6 +83,11 @@ proc inferType(expression: Expression, scope: Scope): Type =
             return Type(kind: Boolean)
         of Ampersand:
             return expression.unaryExpr.inferType(scope).reference()
+        of Mul:
+            let t = expression.unaryExpr.inferType(scope)
+            if t.ptrLevel == 0:
+                raise newParseError(expression, fmt"cannot dereference a non ptr type")
+            return t.dereference()
         else:
             raise newParseError(expression, fmt"cannot infer {expression.token.kind} in a unary expression")
 
@@ -234,9 +239,9 @@ proc analyze(expression: Expression, scope: Scope) =
 
             for (paramExpr, paramType) in zip(paramExpressions, toSeq(function.params.values())):
                 case paramExpr.kind:
-                of Ident, Literal, FunctionCall, BinOp:
+                of Ident, Literal, FunctionCall, BinOp, Unary:
                     let inferredType = paramExpr.inferType(scope)
-                    if paramType != paramExpr.inferType(scope):
+                    if paramType != inferredType:
                         raise newParseError(expression,
                                             fmt"types differ on function call `{name}`, {paramType} != {inferredType}")
                     paramExpr.analyze(scope)
@@ -291,19 +296,31 @@ proc analyze(expression: Expression, scope: Scope) =
                 raise newParseError(expression, fmt"`{name}` wasn't declared yet")
 
         of Unary:
-            case expression.token.kind:
-            of Ampersand:
-                case expression.unaryExpr.kind:
+            let leftKind = expression.token.kind
+            let right = expression.unaryExpr
+            let rightKind = right.kind
+
+            case leftKind:
+            of Ampersand, Mul:
+                case rightKind:
                 of Ident:
-                    expression.unaryExpr.analyze(scope)
+                    right.analyze(scope)
+                of Unary:
+                    if leftKind == Ampersand:
+                        if right.token.kind == Ampersand:
+                            raise newParseError(expression, fmt"cannot have a reference of a reference")
+                        else:
+                            raise newParseError(expression,
+                                                fmt"{right.token.kind} to the right of {leftKind} is currently unsupported")
+                    right.analyze(scope)
                 else:
-                    raise newParseError(expression, fmt"right side of {expression.token.kind} is not a variable")
+                    raise newParseError(expression, fmt"{rightKind} is not a valid right side of {leftKind}")
             else:
-                case expression.unaryExpr.kind:
+                case rightKind:
                 of Ident, Literal, FunctionCall, BinOp, Unary:
-                    expression.unaryExpr.analyze(scope)
+                    right.analyze(scope)
                 else:
-                    raise newParseError(expression, fmt"invalid right side of {expression.token.kind}")
+                    raise newParseError(expression, fmt"invalid right side of {leftKind}")
 
         of BinOp:
             case expression.left.kind:
@@ -340,17 +357,23 @@ proc analyze(expression: Expression, scope: Scope) =
             expression.otherwise.analyze(scope)
 
         of Assign:
-            case expression.assignee.kind:
+            let assignee = expression.assignee
+            case assignee.kind:
             of Ident, TypedIdent:
-                expression.assignee.analyze(scope)
+                assignee.analyze(scope)
+            of Unary:
+                if assignee.token.kind != Mul:
+                    raise newParseError(expression, fmt"cannot assign to unary {assignee.kind}")
+                assignee.analyze(scope)
             else:
-                raise newParseError(expression, fmt"cannot assign to {expression.assignee.kind}")
+                raise newParseError(expression, fmt"cannot assign to {assignee.kind}")
 
-            case expression.assignExpr.kind:
+            let assign = expression.assignExpr
+            case assign.kind:
             of Ident, Literal, FunctionCall, BinOp, Unary:
-                expression.assignExpr.analyze(scope)
+                assign.analyze(scope)
             else:
-                raise newParseError(expression, fmt"cannot assign from {expression.assignExpr.kind}")
+                raise newParseError(expression, fmt"cannot assign from {assign.kind}")
 
             discard expression.inferType(scope)
 

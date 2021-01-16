@@ -16,6 +16,16 @@ type
         stopper: TokenKind
         error: ParseError
 
+        # When building rolling expressions,
+        # you can use this variable to not continue the nextExpression recusrion,
+        # instead returning immediately after a single expression.
+        # Example: Ref / Deref are unary operations that only care about the first expression after them,
+        # which is opposite from the Not expression (not 1 + 1) should be parsed differently than (*1 + 1).
+        #
+        # The reason for keeping the level and not just a boolean is because of recursion,
+        # Example: **ptr / &*&*&*&*variable
+        breakExpressionLevel: int
+
     ParserState = ref object
         tokens: seq[Token]
         index: int
@@ -33,7 +43,11 @@ func newParserState(tokens: seq[Token]): ParserState =
 func newParser*(indentation: int = 0,
                 separator: TokenKind = NewLine,
                 stopper: TokenKind = Indentation): Parser =
-    Parser(indentation: indentation, separator: separator, stopper: stopper, error: nil)
+    Parser(indentation: indentation,
+           separator: separator,
+           stopper: stopper,
+           error: nil,
+           breakExpressionLevel: 0)
 
 proc addError(parser: Parser, e: ParseError) =
     if not parser.error.isNil():
@@ -43,7 +57,7 @@ proc addError(parser: Parser, e: ParseError) =
 proc nextExpression(parser: Parser,
                     state: ParserState,
                     prev: Expression = state.emptyExpression,
-                    injectToken: Option[Token] = none[Token]()): Option[Expression]
+                    breakExpression: bool = false): Option[Expression]
 
 proc nextExpressionOrError(parser: Parser, state: ParserState): Option[Expression] =
     try:
@@ -119,30 +133,80 @@ proc buildUndeterminedType(state: ParserState, typeToken: Token): Type =
         inc(state.index)
     Type(kind: Undetermined, value: typeToken.value, ptrLevel: state.index - startIndex)
 
+proc buildUnaryTree(parser: Parser, state: ParserState, token: Token): Option[Expression] =
+    # Used for unary expressions like Not,
+    # `not 1 + 1` should be parsed as `not (1 + 1)`
+    let expression = parser.nextExpression(state)
+    if expression.isNone() or expression.get().isEmpty():
+        raise newParseError(token, fmt"`{token.kind}` must have an expression after it")
+    return some(Expression(kind: Unary, unaryExpr: expression.get(), token: token))
+
+proc buildUnary(parser: Parser,
+                state: ParserState,
+                token: Token): Option[Expression] =
+    # Used for unary expressions like Deref,
+    # `deref 1 + 1` should be parsed as `(deref 1) + 1`
+    let expression = parser.nextExpression(state, breakExpression=true)
+    if expression.isNone() or expression.get().isEmpty():
+        raise newParseError(token, fmt"`{token.kind}` must have an expression after it")
+    return parser.nextExpression(state, Expression(kind: Unary, unaryExpr: expression.get(), token: token))
+
+proc buildBinOp(parser: Parser,
+                state: ParserState,
+                token: Token,
+                prev: Expression): Option[Expression] =
+    case prev.kind:
+    of Ident, Literal, FunctionCall, BinOp, Unary:
+        discard
+    else:
+        raise newParseError(token, fmt"left side of `{token.kind}` cannot be `{prev.kind}`")
+
+    let isRoot = state.arithmetic == false
+    state.arithmetic = true
+
+    let expression = parser.nextExpression(state)
+    if expression.isNone() or expression.get().isEmpty():
+        raise newParseError(token, fmt"`{token.kind}` must have an expression after it")
+
+    let subtree = expression.get()
+
+    let tree = case subtree.kind:
+    of Ident, Literal, FunctionCall, BinOp, Unary:
+        Expression(kind: BinOp, left: prev, right: subtree, token: token)
+    else:
+        raise newParseError(token, 
+                            fmt"right side of `{token.kind}` cannot be `{subtree.kind}`")
+
+    if isRoot:
+        state.arithmetic = false
+        return some(tree.fixedArithmeticTree())
+    else:
+        return some(tree)
+
 proc nextExpression(parser: Parser,
                     state: ParserState,
                     prev: Expression = state.emptyExpression,
-                    injectToken: Option[Token] = none[Token]()): Option[Expression] =
-    let token = withSome injectToken:
-        some tok:
-            tok
-        none:
-            if state.index >= state.tokens.len():
-                return none[Expression]()
+                    breakExpression: bool = false): Option[Expression] =
+    if parser.breakExpressionLevel > 0 and not breakExpression:
+        dec(parser.breakExpressionLevel)
+        return some(prev)
 
-            let tok = state.tokens[state.index]
-            inc(state.index)
-            tok
+    if breakExpression:
+        inc(parser.breakExpressionLevel)
+
+    if state.index >= state.tokens.len():
+        return none[Expression]()
+
+    let token = state.tokens[state.index]
+    inc(state.index)
 
     withSome state.separator:
         some separator:
             if token.kind == separator:
                 return some(prev)
-            elif token.kind == parser.separator:
-                raise newParseError(token, fmt"got {parser.separator}, but expected {separator}")
-        none:
-            if token.kind == parser.separator:
-                return some(prev)
+
+    if token.kind == parser.separator:
+        return some(prev)
 
     case token.kind:
     of Indentation:
@@ -192,9 +256,13 @@ proc nextExpression(parser: Parser,
 
     of Proc:
         if state.index < state.tokens.len() and state.tokens[state.index].kind == Symbol:
+            var expression = none[Expression]()
+            let oldSeparator = state.separator
             state.separator = some(SmallArrow)
-            var expression = parser.nextExpression(state)
-            state.separator = none[TokenKind]()
+            try:
+                expression = parser.nextExpression(state)
+            finally:
+                state.separator = oldSeparator
 
             if expression.isNone():
                 raise newParseError(token, "expected a `()` expression after proc's name")
@@ -347,7 +415,7 @@ proc nextExpression(parser: Parser,
 
     of Equal:
         case prev.kind:
-        of Ident, TypedIdent:
+        of Ident, TypedIdent, Unary:
             discard
         else:
             raise newParseError(token, "left side of `=` must be a valid assignment expression")
@@ -363,43 +431,27 @@ proc nextExpression(parser: Parser,
         else:
             raise newParseError(token, "right side of `=` must be a valid arithmetic expression")
 
-    of Not, Ampersand:
-        let expression = parser.nextExpression(state)
-        if expression.isNone() or expression.get().isEmpty():
-            raise newParseError(token, fmt"`{token.kind}` must have an expression after it")
-        return some(Expression(kind: Unary, unaryExpr: expression.get(), token: token))
+    of Not:
+        if not prev.isEmpty():
+            raise newParseError(token, fmt"`{token.kind}` must be at the beginning of an expression")
+        return parser.buildUnaryTree(state, token)
 
-    of Mul, Div, Plus, Minus, BiggerThan, BiggerThanEqual, SmallerThan, SmallerThanEqual, DoubleEqual, And, Or:
+    of Ampersand:
+        if not prev.isEmpty():
+            raise newParseError(token, fmt"`{token.kind}` must be at the beginning of an expression")
+        return parser.buildUnary(state, token)
+
+    of Div, Plus, Minus, BiggerThan, BiggerThanEqual, SmallerThan, SmallerThanEqual, DoubleEqual, And, Or:
         if prev.isEmpty():
             raise newParseError(token, fmt"`{token.kind}` cannot be at the beginning of an expression")
 
-        case prev.kind:
-        of Ident, Literal, FunctionCall, BinOp, Unary:
-            discard
+        return parser.buildBinOp(state, token, prev)
+
+    of Mul:
+        if prev.isEmpty():
+            return parser.buildUnary(state, token)
         else:
-            raise newParseError(token, fmt"left side of `{token.kind}` cannot be `{prev.kind}`")
-
-        let isRoot = state.arithmetic == false
-        state.arithmetic = true
-
-        let expression = parser.nextExpression(state)
-        if expression.isNone() or expression.get().isEmpty():
-            raise newParseError(token, fmt"`{token.kind}` must have an expression after it")
-
-        let subtree = expression.get()
-
-        let tree = case subtree.kind:
-        of Ident, Literal, FunctionCall, BinOp, Unary:
-            Expression(kind: BinOp, left: prev, right: subtree, token: token)
-        else:
-            raise newParseError(token, 
-                               fmt"right side of `{token.kind}` cannot be `{subtree.kind}`")
-
-        if isRoot:
-            state.arithmetic = false
-            return some(tree.fixedArithmeticTree())
-        else:
-            return some(tree)
+            return parser.buildBinOp(state, token, prev)
 
     of Unknown:
         raise newParseError(token, fmt"unexpected token: `{token.value}`")

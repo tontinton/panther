@@ -177,22 +177,39 @@ proc build(backend: LLVMBackend, expression: Expression): llvm.ValueRef =
             discard
 
     of Assign:
-        let left = expression.assignee
+        var ptrLevel = 0
+        var left = expression.assignee
         let right = expression.assignExpr
         let name = case left.kind:
             of TypedIdent:
                 left.ident.value
             of Ident:
                 left.value
+            of Unary:
+                inc(ptrLevel)
+                while left.unaryExpr.kind == Unary:
+                    inc(ptrLevel)
+                    left = left.unaryExpr
+                left.unaryExpr.value
             else:
                 raise newBackendError(fmt"unsupported asignee: {expression.token.kind}")
-        let variable = backend.variables[name]
+
+        var variable = backend.variables[name]
+        while ptrLevel > 0:
+            if backend.isGlobalVariable(variable):
+                variable = variable.getInitializer()
+            else:
+                variable = llvm.buildLoad(backend.builder, variable, "")
+            dec(ptrLevel)
+
         let variableInit = backend.build(right)
+
         if backend.isGlobalVariable(variable):
             llvm.setInitializer(variable, variableInit)
             llvm.setGlobalConstant(variable, llvm.False)
         else:
             discard llvm.buildStore(backend.builder, variableInit, variable)
+
         return variable
 
     of BinOp:
@@ -241,12 +258,10 @@ proc build(backend: LLVMBackend, expression: Expression): llvm.ValueRef =
                                     "")
             return llvm.buildZExt(backend.builder, cmp, llvmVal.typeOfX(), "")
         of Ampersand:
-            let right = expression.unaryExpr
-            case right.kind:
-            of Ident:
-                return backend.variables[right.value]
-            else:
-                raise newBackendError(fmt"unsupported expression to {expression.token.kind} unary: {right.kind}")
+            return backend.variables[expression.unaryExpr.value]
+        of tokens.Mul:
+            let llvmVal = backend.build(expression.unaryExpr)
+            return llvm.buildLoad(backend.builder, llvmVal, "")
         else:
             raise newBackendError(fmt"unsupported unary: {expression.token.kind}")
 

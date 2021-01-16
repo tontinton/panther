@@ -89,6 +89,8 @@ func formatTreeString(expression: Expression, tabs: uint = 0): string =
     of Unary:
         let operator = case expression.token.kind:
                        of Not: "not"
+                       of Ampersand: "reference of"
+                       of Mul: "dereference of"
                        else: "?"
         let t = tabs.toString()
         fmt"""{t}{operator}:

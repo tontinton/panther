@@ -7,4 +7,7 @@ proc fib(a: s32) -> s32:
     return fib(a - 1) + fib(a - 2)
 
 proc main() -> s32:
-    return fib(ITERATIONS_DOUBLED - 10)
+    let test = &ITERATIONS_DOUBLED
+    let test_ptr = &test
+    **test_ptr = 10
+    return fib(*test)
