@@ -26,9 +26,11 @@ proc newLLVMBackend*(): LLVMBackend =
     let builder = llvm.createBuilderInContext(context)
 
     let types = newTable[types.TypeKind, llvm.TypeRef]()
+    let voidType = llvm.voidTypeInContext(context)
     let int32Type = llvm.intTypeInContext(context, 32)
     let int8Type = llvm.intTypeInContext(context, 8)
     let floatType = llvm.floatTypeInContext(context)
+    types[Void] = voidType
     types[Unsigned32] = int32Type
     types[Signed32] = int32Type
     types[Float32] = floatType
@@ -399,7 +401,7 @@ proc build(backend: LLVMBackend, expression: Expression): llvm.ValueRef =
         # return phi
 
     of Empty:
-        discard
+        return nil
 
     else:
         raise newBackendError(fmt"unsupported expression: {expression.kind}")

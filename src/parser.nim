@@ -133,6 +133,9 @@ proc buildUndeterminedType(state: ParserState, typeToken: Token): Type =
         inc(state.index)
     Type(kind: Undetermined, value: typeToken.value, ptrLevel: state.index - startIndex)
 
+proc buildVoidType(): Type =
+    Type(kind: Void, ptrLevel: 0)
+
 proc buildUnaryTree(parser: Parser, state: ParserState, token: Token): Option[Expression] =
     # Used for unary expressions like Not,
     # `not 1 + 1` should be parsed as `not (1 + 1)`
@@ -254,49 +257,48 @@ proc nextExpression(parser: Parser,
             else:
                 raise newParseError(token, "expected a type after `:`")
 
+    of SmallArrow:
+        if prev.kind != FunctionCall:
+            raise newParseError(token, "`->` can only come after a function declaration")
+        return some(prev)
+
     of Proc:
         if state.index < state.tokens.len() and state.tokens[state.index].kind == Symbol:
-            var expression = none[Expression]()
-            let oldSeparator = state.separator
-            state.separator = some(SmallArrow)
-            try:
-                expression = parser.nextExpression(state)
-            finally:
-                state.separator = oldSeparator
-
+            let expression = parser.nextExpression(state)
             if expression.isNone():
-                raise newParseError(token, "expected a `()` expression after proc's name")
+                raise newParseError(token, &"got an empty expression after {Proc}")
             let head = expression.get()
             if head.kind != FunctionCall:
-                raise newParseError(token, "expected a `()` expression after proc's name")
+                raise newParseError(token,
+                                    &"expected a {FunctionCall} expression after proc's name, not {head.kind}")
 
-            if state.index < state.tokens.len() and state.tokens[state.index].kind == Symbol:
+            let returnType = if state.index < state.tokens.len() and state.tokens[state.index].kind == Symbol:
                 let typeToken = state.tokens[state.index]
                 inc(state.index)
-
-                let returnType = buildUndeterminedType(state, typeToken)
-
-                expression = parser.nextExpression(state)
-                withSome expression:
-                    some procBlock:
-                        return some(Expression(kind: FunctionDeclaration,
-                                               declName: head.name,
-                                               declParams: head.params,
-                                               returnType: returnType,
-                                               implementation: procBlock,
-                                               token: token))
-                    none:
-                        raise newParseError(token, fmt"expected an implementation for {head.name}")
+                buildUndeterminedType(state, typeToken)
             else:
-                raise newParseError(token, "`proc` must indicate a return type")
+                buildVoidType()
+
+            withSome parser.nextExpression(state):
+                some procBlock:
+                    return some(Expression(kind: FunctionDeclaration,
+                                            declName: head.name,
+                                            declParams: head.params,
+                                            returnType: returnType,
+                                            implementation: procBlock,
+                                            token: token))
+                none:
+                    raise newParseError(token, fmt"expected an implementation for {head.name}")
         else:
             raise newParseError(token, "expected a symbol after `proc`")
 
     of Ret:
-        let expression = parser.nextExpression(state)
-        if expression.isNone():
-            raise newParseError(token, "expected an expression after `return`")
-        return some(Expression(kind: Return, retExpr: expression.get(), token: token))
+        let maybeExpression = parser.nextExpression(state)
+        let expression = if maybeExpression.isNone():
+            state.emptyExpression
+        else:
+            maybeExpression.get()
+        return some(Expression(kind: Return, retExpr: expression, token: token))
 
     of OpenBracket:
         if prev.kind == Ident:
@@ -356,10 +358,14 @@ proc nextExpression(parser: Parser,
                                                        token: token))
 
     of ColonNewLine:
-        let expression = parser.nextBlock(state)
-        if expression.expressions.len() < 1:
-            raise newParseError(token, "no block after `:`")
-        return some(expression)
+        if prev.isEmpty():
+            let expression = parser.nextBlock(state)
+            if expression.expressions.len() < 1:
+                raise newParseError(token, "no block after `:`")
+            return some(expression)
+        else:
+            dec(state.index)
+            return some(prev)
 
     of If, ElseIf:
         if token.kind == ElseIf and prev.kind != IfThen:

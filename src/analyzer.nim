@@ -62,6 +62,9 @@ proc inferType(expression: Expression, scope: Scope): Type =
             discard
 
     case expression.kind:
+    of Empty:
+        return Type(kind: Void)
+
     of Ident:
         let name = expression.value
         try:
@@ -216,7 +219,7 @@ proc analyze(expression: Expression, scope: Scope) =
 
                     let retType = scope.functions[name].returnType
                     let inferredType = expression.retExpr.inferType(scope)
-                    if inferredType != retType:    
+                    if inferredType != retType:
                         # TODO: add the function declaration expression to the error message somehow
                         raise newParseError(expression,
                                             fmt"return type of `{name}` differs, {retType} != {inferredType}")

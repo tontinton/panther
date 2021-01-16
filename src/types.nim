@@ -5,6 +5,7 @@ type
     TypeKind* = enum
         Undetermined
         Auto
+        Void
         Signed32
         Unsigned32
         Float32
@@ -24,6 +25,7 @@ const BOOLEAN_FALSE* = "false"
 
 const BUILTIN_TYPES* = {
     "auto": Auto,
+    "void": Void,
     "s32": Signed32,
     "u32": Unsigned32,
     "f32": Float32,
