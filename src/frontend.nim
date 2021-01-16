@@ -57,7 +57,8 @@ proc print(e: ParseError, lexer: Lexer) =
         error = error.next
 
     echo ""
-    (&"got {errors.len()} compilation errors\n").printErrorLine()
+    let s = if errors.len() > 1: "s" else: ""
+    (&"got {errors.len()} compilation error{s}\n").printErrorLine()
 
     while not errors.isEmpty():
         errors.pop().printSingle(lexer)
