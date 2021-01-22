@@ -57,7 +57,7 @@ iterator items*(lexer: Lexer): Token =
     var lineStart = 0
 
     proc newToken(kind: TokenKind, length: int = 1): Token = 
-        Token(kind: kind, errorInfo: newErrorInfo(line, lineStart, index - lineStart, length))
+        Token(kind: kind, errorInfo: newErrorInfo(line, lineStart, index - lineStart - 1, length))
 
     proc newUnknown(value: string): Token =
         Token(kind: Unknown, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart, value.len()))
@@ -108,8 +108,8 @@ iterator items*(lexer: Lexer): Token =
                 yield newToken(Comma)
             of ':':
                 if index + 1 < lexer.text.len() and lexer.text[index + 1] == '\n':
-                    yield newToken(ColonNewLine)
                     inc(index)
+                    yield newToken(ColonNewLine)
                     inIndentation = true
                     indentationLength = 0
                     inc(line)
@@ -130,11 +130,11 @@ iterator items*(lexer: Lexer): Token =
                 if index + 1 < lexer.text.len():
                     case lexer.text[index + 1]:
                     of '>':
+                        inc(index)
                         yield newToken(SmallArrow, 2)
-                        inc(index)
                     of '=':
-                        yield newToken(MinusEqual, 2)
                         inc(index)
+                        yield newToken(MinusEqual, 2)
                     of '0'..'9', '.':
                         let value = getNumber(lexer.text, index + 1)
                         yield newNumber(fmt"-{value}")
@@ -145,38 +145,38 @@ iterator items*(lexer: Lexer): Token =
                     yield newToken(Minus)
             of '+':
                 if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
-                    yield newToken(PlusEqual, 2)
                     inc(index)
+                    yield newToken(PlusEqual, 2)
                 else:
                     yield newToken(Plus)
             of '/':
                 if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
-                    yield newToken(DivEqual, 2)
                     inc(index)
+                    yield newToken(DivEqual, length=2)
                 else:
                     yield newToken(Div)
             of '*':
                 if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
-                    yield newToken(MulEqual, 2)
                     inc(index)
+                    yield newToken(MulEqual, length=2)
                 else:
                     yield newToken(Mul)
             of '=':
                 if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
-                    yield newToken(DoubleEqual, 2)
                     inc(index)
+                    yield newToken(DoubleEqual, length=2)
                 else:
                     yield newToken(Equal)
             of '>':
                 if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
-                    yield newToken(BiggerThanEqual, 2)
                     inc(index)
+                    yield newToken(BiggerThanEqual, length=2)
                 else:
                     yield newToken(BiggerThan)
             of '<':
                 if index + 1 < lexer.text.len() and lexer.text[index + 1] == '=':
-                    yield newToken(SmallerThanEqual, 2)
                     inc(index)
+                    yield newToken(SmallerThanEqual, length=2)
                 else:
                     yield newToken(SmallerThan)
             of '"':
@@ -191,21 +191,22 @@ iterator items*(lexer: Lexer): Token =
             of 'A'..'Z', 'a'..'z':
                 let value = getSymbol(lexer.text, index)
                 index += value.len() - 1
+                let length = value.len()
                 case value:
-                of "if": yield newToken(If)
-                of "else": yield newToken(Else)
-                of "elif": yield newToken(ElseIf)
-                of "let": yield newToken(Let)
-                of "proc": yield newToken(Proc)
-                of "return": yield newToken(Ret)
-                of "import": yield newToken(Import)
-                of "pass": yield newToken(Pass)
-                of "true": yield newToken(True)
-                of "false": yield newToken(False)
-                of "and": yield newToken(And)
-                of "or": yield newToken(Or)
-                of "not": yield newToken(Not)
-                of "as": yield newToken(As)
+                of "if": yield newToken(If, length=length)
+                of "else": yield newToken(Else, length=length)
+                of "elif": yield newToken(ElseIf, length=length)
+                of "let": yield newToken(Let, length=length)
+                of "proc": yield newToken(Proc, length=length)
+                of "return": yield newToken(Ret, length=length)
+                of "import": yield newToken(Import, length=length)
+                of "pass": yield newToken(Pass, length=length)
+                of "true": yield newToken(True, length=length)
+                of "false": yield newToken(False, length=length)
+                of "and": yield newToken(And, length=length)
+                of "or": yield newToken(Or, length=length)
+                of "not": yield newToken(Not, length=length)
+                of "as": yield newToken(As, length=length)
                 else: yield newSymbol(value)
             else:
                 yield newUnknown($c)
