@@ -433,6 +433,19 @@ proc nextExpression(parser: Parser,
 
         return some(Expression(kind: Assign, assignee: prev, assignExpr: subtree, token: token))
 
+    of As:
+        if prev.isEmpty():
+            raise newParseError(token, fmt"`{token.kind}` cannot be at the beginning of an expression")
+
+        if state.index < state.tokens.len() and state.tokens[state.index].kind == Symbol:
+            let typeToken = state.tokens[state.index]
+            inc(state.index)
+
+            let toType = buildUndeterminedType(state, typeToken)
+            return some(Expression(kind: Cast, castExpr: prev, toType: toType, token: token))
+        else:
+            raise newParseError(token, fmt"right side of `{token.kind}` must be a {Symbol}")
+
     of Not:
         if not prev.isEmpty():
             raise newParseError(token, fmt"`{token.kind}` must be at the beginning of an expression")

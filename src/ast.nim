@@ -197,5 +197,7 @@ func isResultExpression*(expression: Expression): bool =
     case expression.kind:
     of Ident, Literal, FunctionCall, BinOp, Unary:
         return true
+    of Cast:
+        return expression.castExpr.isResultExpression()
     else:
         return false

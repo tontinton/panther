@@ -135,6 +135,9 @@ proc inferType(expression: Expression, scope: Scope): Type =
                                 fmt"types differ on {expression.token.kind} operation, {leftType} != {rightType}")
         return leftType
 
+    of Cast:
+        return expression.toType
+
     else:
         raise newParseError(expression, fmt"could not infer type from {expression[]}")
 
@@ -177,6 +180,14 @@ proc analyze(expression: Expression, scope: Scope) =
         scope.validateUnique(key)
         scope.functions[key] = val
 
+    proc fixedUndeterminedType(t: Type): Type =
+        let typeName = t.value
+        let ptrLevel = t.ptrLevel
+        try:
+            return Type(kind: scope.types[typeName].kind, ptrLevel: ptrLevel)
+        except KeyError:
+            raise newParseError(expression, fmt"the type `{typeName}` wasn't declared yet")
+
     withErrorCatching:
         case expression.kind:
         of Block:
@@ -200,11 +211,7 @@ proc analyze(expression: Expression, scope: Scope) =
             expression.declParams.validateKind(Block)
 
             if expression.returnType.kind == Undetermined:
-                let typeName = expression.returnType.value
-                try:
-                    expression.returnType = scope.types[typeName]
-                except KeyError:
-                    raise newParseError(expression, fmt"the type `{typeName}` wasn't declared yet")
+                expression.returnType = expression.returnType.fixedUndeterminedType()
 
             let functionScope = newFunctionScope(scope, name)
             var paramsDescription = newOrderedTable[string, Type]()
@@ -286,6 +293,7 @@ proc analyze(expression: Expression, scope: Scope) =
 
                 case left.kind:
                 of Ident:
+                    right.analyze(scope)
                     let t = right.inferType(scope)
                     scope.add(left.value, t)
                     declExpr.assignee = Expression(kind: TypedIdent,
@@ -307,13 +315,7 @@ proc analyze(expression: Expression, scope: Scope) =
         of TypedIdent:
             expression.ident.validateKind(Ident)
             if expression.identType.kind == Undetermined:
-                let typeName = expression.identType.value
-                let ptrLevel = expression.identType.ptrLevel
-                try:
-                    expression.identType = Type(kind: scope.types[typeName].kind,
-                                                ptrLevel:ptrLevel)
-                except KeyError:
-                    raise newParseError(expression, fmt"the type `{typeName}` wasn't declared yet")
+                expression.identType = expression.identType.fixedUndeterminedType()
 
         of Ident:
             let name = expression.value
@@ -394,6 +396,16 @@ proc analyze(expression: Expression, scope: Scope) =
 
             assign.analyze(scope)
             discard expression.inferType(scope)
+
+        of Cast:
+            if expression.toType.kind == Undetermined:
+                expression.toType = expression.toType.fixedUndeterminedType()
+
+            let exp = expression.castExpr
+            if not exp.isResultExpression():
+                raise newParseError(expression, fmt"left side must be castable")
+
+            exp.analyze(scope)
 
         else:
             discard
