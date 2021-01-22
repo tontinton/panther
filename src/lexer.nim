@@ -63,16 +63,19 @@ iterator items*(lexer: Lexer): Token =
         Token(kind: Unknown, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart, value.len()))
 
     proc newSymbol(value: string): Token =
-        Token(kind: Symbol, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart, value.len()))
+        let start = index - lineStart - value.len() + 1
+        Token(kind: Symbol, value: value, errorInfo: newErrorInfo(line, lineStart, start, value.len()))
 
     proc newNumber(value: string): Token =
+        let start = index - lineStart - value.len() + 1
         if "." in value:
-            Token(kind: Float, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart, value.len()))
+            Token(kind: Float, value: value, errorInfo: newErrorInfo(line, lineStart, start, value.len()))
         else:
-            Token(kind: Number, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart, value.len()))
+            Token(kind: Number, value: value, errorInfo: newErrorInfo(line, lineStart, start, value.len()))
 
     proc newStr(value: string): Token =
-        Token(kind: Str, value: value, errorInfo: newErrorInfo(line, lineStart, index - lineStart - 1, value.len() + 2))
+        let start = index - lineStart - value.len()
+        Token(kind: Str, value: value, errorInfo: newErrorInfo(line, lineStart, start, value.len() + 2))
 
     proc newIndentation(): Token =
         Token(kind: Indentation,
