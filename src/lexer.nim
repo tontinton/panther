@@ -202,6 +202,7 @@ iterator items*(lexer: Lexer): Token =
                 of "and": yield newToken(And)
                 of "or": yield newToken(Or)
                 of "not": yield newToken(Not)
+                of "as": yield newToken(As)
                 else: yield newSymbol(value)
             else:
                 yield newUnknown($c)

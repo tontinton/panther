@@ -48,6 +48,7 @@ type
         Or
         Not
         Ampersand
+        As
 
         SmallArrow
 
