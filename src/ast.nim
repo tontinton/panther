@@ -21,6 +21,7 @@ type
         FunctionCall
         Return
         Block
+        Cast
 
     Expression* = ref object
         token*: Token  # Used for error messages
@@ -64,6 +65,9 @@ type
             retExpr*: Expression
         of Block:
             expressions*: seq[Expression]
+        of Cast:
+            castExpr*: Expression
+            toType*: Type
 
 func isEmpty*(expression: Expression): bool =
     expression.kind == Empty
@@ -170,6 +174,13 @@ func formatTreeString(expression: Expression, tabs: uint = 0): string =
     of Return:
         &"{tabs.toString()}return:\n{expression.retExpr.formatTreeString(tabs + 1)}"
 
+    of Cast:
+        let t = tabs.toString()
+        fmt"""{t}cast:
+  {t}assignee:
+{expression.castExpr.formatTreeString(tabs + 2)}
+  {t}to type: {expression.toType}"""
+
 func `$`*(expression: Expression): string =
     expression.formatTreeString()
 
@@ -181,3 +192,10 @@ proc error*(expression: Expression): seq[ErrorInfo] =
                 result.add(error)
     else:
         result.add(expression.token.error)
+
+func isResultExpression*(expression: Expression): bool =
+    case expression.kind:
+    of Ident, Literal, FunctionCall, BinOp, Unary:
+        return true
+    else:
+        return false
