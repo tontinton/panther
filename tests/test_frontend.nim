@@ -72,6 +72,11 @@ const EXPECTED_OUTPUT = """
                 ),
               ]
           ),
+          (
+            return:
+              type: Signed32
+              literal: 0
+          ),
         ]
   ),
   (
@@ -114,6 +119,11 @@ const EXPECTED_OUTPUT = """
                     literal: false
                 ),
               ]
+          ),
+          (
+            return:
+              type: Boolean
+              literal: false
           ),
         ]
   ),
@@ -247,6 +257,11 @@ const EXPECTED_OUTPUT = """
                       literal: 0
                   ),
                 ]
+          ),
+          (
+            return:
+              type: Signed32
+              literal: 0
           ),
         ]
   ),

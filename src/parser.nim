@@ -16,6 +16,8 @@ type
         stopper: TokenKind
         error: ParseError
 
+        arithmetic: bool  # Are we currently parsing an arithmetic expression
+
         # When building rolling expressions,
         # you can use this variable to not continue the nextExpression recusrion,
         # instead returning immediately after a single expression.
@@ -31,14 +33,12 @@ type
         index: int
         emptyExpression: Expression
         separator: Option[TokenKind]
-        arithmetic: bool  # Are we currently parsing an arithmetic expression
 
 func newParserState(tokens: seq[Token]): ParserState =
     ParserState(tokens: tokens,
                 index: 0,
                 emptyExpression: Expression(kind: Empty),
-                separator: none[TokenKind](),
-                arithmetic: false)
+                separator: none[TokenKind]())
 
 func newParser*(indentation: int = 0,
                 separator: TokenKind = NewLine,
@@ -47,6 +47,7 @@ func newParser*(indentation: int = 0,
            separator: separator,
            stopper: stopper,
            error: nil,
+           arithmetic: false,
            breakExpressionLevel: 0)
 
 proc addError(parser: Parser, e: ParseError) =
@@ -164,8 +165,8 @@ proc buildBinOp(parser: Parser,
     else:
         raise newParseError(token, fmt"left side of `{token.kind}` cannot be `{prev.kind}`")
 
-    let isRoot = state.arithmetic == false
-    state.arithmetic = true
+    let isRoot = parser.arithmetic == false
+    parser.arithmetic = true
 
     let expression = parser.nextExpression(state)
     if expression.isNone() or expression.get().isEmpty():
@@ -181,7 +182,7 @@ proc buildBinOp(parser: Parser,
                             fmt"right side of `{token.kind}` cannot be `{subtree.kind}`")
 
     if isRoot:
-        state.arithmetic = false
+        parser.arithmetic = false
         return some(tree.fixedArithmeticTree())
     else:
         return some(tree)
