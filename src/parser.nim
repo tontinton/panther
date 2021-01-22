@@ -159,10 +159,7 @@ proc buildBinOp(parser: Parser,
                 state: ParserState,
                 token: Token,
                 prev: Expression): Option[Expression] =
-    case prev.kind:
-    of Ident, Literal, FunctionCall, BinOp, Unary:
-        discard
-    else:
+    if not prev.isResultExpression():
         raise newParseError(token, fmt"left side of `{token.kind}` cannot be `{prev.kind}`")
 
     let isRoot = parser.arithmetic == false
@@ -174,12 +171,11 @@ proc buildBinOp(parser: Parser,
 
     let subtree = expression.get()
 
-    let tree = case subtree.kind:
-    of Ident, Literal, FunctionCall, BinOp, Unary:
-        Expression(kind: BinOp, left: prev, right: subtree, token: token)
-    else:
+    if not subtree.isResultExpression():
         raise newParseError(token, 
                             fmt"right side of `{token.kind}` cannot be `{subtree.kind}`")
+
+    let tree = Expression(kind: BinOp, left: prev, right: subtree, token: token)
 
     if isRoot:
         parser.arithmetic = false
@@ -432,11 +428,10 @@ proc nextExpression(parser: Parser,
             raise newParseError(token, "`=` must have an expression after it")
 
         let subtree = expression.get()
-        case subtree.kind:
-        of Ident, Literal, FunctionCall, BinOp, Unary:
-            return some(Expression(kind: Assign, assignee: prev, assignExpr: subtree, token: token))
-        else:
+        if not subtree.isResultExpression():
             raise newParseError(token, "right side of `=` must be a valid arithmetic expression")
+
+        return some(Expression(kind: Assign, assignee: prev, assignExpr: subtree, token: token))
 
     of Not:
         if not prev.isEmpty():

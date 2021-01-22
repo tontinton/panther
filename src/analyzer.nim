@@ -267,15 +267,14 @@ proc analyze(expression: Expression, scope: Scope) =
                                     fmt"`{name}` expected {function.params.len()} arguments, got {paramExpressions.len()}")
 
             for (paramExpr, paramType) in zip(paramExpressions, toSeq(function.params.values())):
-                case paramExpr.kind:
-                of Ident, Literal, FunctionCall, BinOp, Unary:
-                    let inferredType = paramExpr.inferType(scope)
-                    if paramType != inferredType:
-                        raise newParseError(expression,
-                                            fmt"types differ on function call `{name}`, {paramType} != {inferredType}")
-                    paramExpr.analyze(scope)
-                else:
+                if not paramExpr.isResultExpression():
                     raise newParseError(expression, fmt"{paramExpr[]} is an invalid function call parameter")
+
+                let inferredType = paramExpr.inferType(scope)
+                if paramType != inferredType:
+                    raise newParseError(expression,
+                                        fmt"types differ on function call `{name}`, {paramType} != {inferredType}")
+                paramExpr.analyze(scope)
 
         of Declaration:
             let declExpr = expression.declExpr
@@ -345,33 +344,25 @@ proc analyze(expression: Expression, scope: Scope) =
                 else:
                     raise newParseError(expression, fmt"{rightKind} is not a valid right side of {leftKind}")
             else:
-                case rightKind:
-                of Ident, Literal, FunctionCall, BinOp, Unary:
-                    right.analyze(scope)
-                else:
+                if not right.isResultExpression():
                     raise newParseError(expression, fmt"invalid right side of {leftKind}")
 
+                right.analyze(scope)
+
         of BinOp:
-            case expression.left.kind:
-            of Ident, Literal, FunctionCall, BinOp, Unary:
-                expression.left.analyze(scope)
-            else:
+            if not expression.left.isResultExpression():
                 raise newParseError(expression, fmt"invalid left side of {expression.token.kind}")
 
-            case expression.right.kind:
-            of Ident, Literal, FunctionCall, BinOp, Unary:
-                expression.right.analyze(scope)
-            else:
+            if not expression.right.isResultExpression():
                 raise newParseError(expression, fmt"invalid right side of {expression.token.kind}")
 
+            expression.left.analyze(scope)
+            expression.right.analyze(scope)
             discard expression.inferType(scope)
 
         of IfThen:
             withErrorCatching:
-                case expression.condition.kind:
-                of Ident, Literal, FunctionCall, BinOp, Unary:
-                    discard
-                else:
+                if not expression.condition.isResultExpression():
                     raise newParseError(expression, fmt"invalid condition expression on if statement")
 
                 if expression.then.kind != Block:
@@ -398,12 +389,10 @@ proc analyze(expression: Expression, scope: Scope) =
                 raise newParseError(expression, fmt"cannot assign to {assignee.kind}")
 
             let assign = expression.assignExpr
-            case assign.kind:
-            of Ident, Literal, FunctionCall, BinOp, Unary:
-                assign.analyze(scope)
-            else:
+            if not assign.isResultExpression():
                 raise newParseError(expression, fmt"cannot assign from {assign.kind}")
 
+            assign.analyze(scope)
             discard expression.inferType(scope)
 
         else:
