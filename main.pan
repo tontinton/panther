@@ -1,16 +1,12 @@
 let ITERATIONS = 25
-let ITERATIONS_DOUBLED = ITERATIONS * 2
+let ADDRESS = 10000
 
 proc fib(a: s32) -> s32:
     if a <= 2:
         return 1
     return fib(a - 1) + fib(a - 2)
 
-proc set(ptr: s32*, val: s32):
-    *ptr = val
-
 proc main() -> s32:
-    let test = &ITERATIONS_DOUBLED
-    let test_ptr = &test
-    set(*test_ptr, 10)
+    let test = ADDRESS as s32*
+    *test = ITERATIONS
     return fib(*test)

@@ -151,6 +151,29 @@ proc build(backend: LLVMBackend, expression: Expression): llvm.ValueRef =
         else:
             raise newBackendError(fmt"unsupported literal: {expression.literalType.kind}")
 
+    of Cast:
+        let llvmValue = backend.build(expression.castExpr)
+        let toLlvmType = backend.getLLVMType(expression.toType)
+
+        let leftKind = llvmValue.typeOfX().getTypeKind()
+        let rightKind = toLlvmType.getTypeKind()
+
+        template raiseUnsupportedCast() =
+            raise newBackendError(fmt"unsupported cast from {leftKind} to {rightKind}")
+
+        case leftKind:
+        of llvm.IntegerTypeKind:
+            case rightKind:
+            of llvm.PointerTypeKind:
+                return llvm.buildIntToPtr(backend.builder,
+                                          llvmValue,
+                                          toLlvmType,
+                                          "")
+            else:
+                raiseUnsupportedCast()
+        else:
+            raiseUnsupportedCast()
+
     of Ident:
         let name = expression.value
         let variable = backend.variables[name]
