@@ -442,7 +442,11 @@ proc nextExpression(parser: Parser,
             inc(state.index)
 
             let toType = buildUndeterminedType(state, typeToken)
-            return some(Expression(kind: Cast, castExpr: prev, toType: toType, token: token))
+            return parser.nextExpression(state,
+                                         Expression(kind: Cast,
+                                                    castExpr: prev,
+                                                    toType: toType,
+                                                    token: token))
         else:
             raise newParseError(token, fmt"right side of `{token.kind}` must be a {Symbol}")
 
