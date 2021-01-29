@@ -1,4 +1,4 @@
-import customerrors
+import common/customerrors
 
 type
     TokenKind* = enum

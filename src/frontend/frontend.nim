@@ -11,7 +11,7 @@ import lexer
 import parser
 import ast
 import analyzer
-import customerrors
+import common/customerrors
 
 proc printErrorLine(message: string) =
     setForegroundColor(fgRed)

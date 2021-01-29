@@ -1,8 +1,8 @@
 import unittest
 import options
 
-import frontend
-import ast
+import frontend/frontend
+import frontend/ast
 
 const INPUT = readFile("test.pan")
 

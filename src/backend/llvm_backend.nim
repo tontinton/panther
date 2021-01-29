@@ -2,12 +2,12 @@ import strutils
 import strformat
 import tables
 
-import llvm
+import llvm/llvm
 
-import types
-import ast
-import tokens
-import customerrors
+import common/types
+import common/customerrors
+import frontend/ast
+import frontend/tokens
 
 const GLOBAL_LEVEL = 0
 

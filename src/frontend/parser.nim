@@ -5,9 +5,9 @@ import safeoptions
 
 import ast
 import tokens
-import types
 import arithmetic
-import customerrors
+import common/types
+import common/customerrors
 
 type
     Parser* = ref object

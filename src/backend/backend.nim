@@ -1,8 +1,8 @@
 import strformat
 
-import ast
 import llvm_backend
-import customerrors
+import common/customerrors
+import frontend/ast
 
 proc compile*(expression: Expression, outputPath: string, target: string, outputAsm: bool = false): bool =
     try:

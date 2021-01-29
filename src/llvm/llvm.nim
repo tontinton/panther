@@ -48,20 +48,20 @@ type
   OpaqueTargetData{.pure, final.} = object
   OpaqueTargetLibraryInfotData{.pure, final.} = object
 
-include llvm/Types
-include llvm/Support
+include Types
+include Support
 
-include llvm/Core
-include llvm/DebugInfo
-include llvm/BitReader
-include llvm/BitWriter
-include llvm/IRReader
-include llvm/Linker
-include llvm/Target
-include llvm/TargetMachine
-include llvm/Transforms/PassManagerBuilder
+include Core
+include DebugInfo
+include BitReader
+include BitWriter
+include IRReader
+include Linker
+include Target
+include TargetMachine
+include Transforms/PassManagerBuilder
 
-include llvm/preprocessed
+include preprocessed
 
 # http://www.dwarfstd.org/doc/DWARF4.pdf
 const

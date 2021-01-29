@@ -3,7 +3,7 @@ import strutils
 import os
 import strformat
 
-import llvm
+import llvm/llvm
 
 # To let the compiled test find the .so files
 {.passL: "-Wl,-rpath,\\$ORIGIN".}

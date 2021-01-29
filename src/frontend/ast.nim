@@ -2,8 +2,8 @@ import strutils
 import strformat
 
 import tokens
-import types
-import customerrors
+import common/types
+import common/customerrors
 
 type
     ExpressionKind* = enum

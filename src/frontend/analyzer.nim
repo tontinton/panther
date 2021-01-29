@@ -7,9 +7,9 @@ import macros
 import optionsutils
 
 import ast
-import types
 import tokens
-import customerrors
+import common/types
+import common/customerrors
 
 type
     Function = ref object
