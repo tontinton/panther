@@ -165,12 +165,19 @@ proc build(backend: LLVMBackend, expression: Expression): llvm.ValueRef =
         of llvm.IntegerTypeKind:
             case rightKind:
             of llvm.PointerTypeKind:
-                return llvm.buildIntToPtr(backend.builder,
-                                          llvmValue,
-                                          toLlvmType,
-                                          "")
+                return llvm.buildIntToPtr(backend.builder, llvmValue, toLlvmType, "")
             else:
                 raiseUnsupportedCast()
+
+        of llvm.PointerTypeKind:
+            case rightKind:
+            of llvm.PointerTypeKind:
+                return llvm.buildPointerCast(backend.builder, llvmValue, toLlvmType, "")
+            of llvm.IntegerTypeKind:
+                return llvm.buildPtrToInt(backend.builder, llvmValue, toLlvmType, "")
+            else:
+                raiseUnsupportedCast()
+
         else:
             raiseUnsupportedCast()
 
