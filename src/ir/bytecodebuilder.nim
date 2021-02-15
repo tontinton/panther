@@ -13,9 +13,6 @@ type
     ByteCodeBuilder = ref object
         code: ByteCode
 
-        # Map between name of a const to it's index inside consts
-        nameToConst: TableRef[string, int]
-
         # Map between name of a variable to it's index inside variables
         nameToVariable: TableRef[string, int]
 
@@ -24,18 +21,14 @@ type
         # bin op tree after it's done feeding opcodes.
         inBinOpTree: bool
 
-proc newByteCodeBuilder(builder: ByteCodeBuilder = nil): ByteCodeBuilder =
-    let constTable = newTable[string, int]()
+proc newByteCodeBuilder*(builder: ByteCodeBuilder = nil): ByteCodeBuilder =
     let variableTable = newTable[string, int]()
 
     if builder != nil:
-        for key in builder.nameToConst.keys():
-            constTable[key] = builder.nameToConst[key]
         for key in builder.nameToVariable.keys():
             variableTable[key] = builder.nameToVariable[key]
 
     ByteCodeBuilder(code: newByteCode(),
-                    nameToConst: constTable,
                     nameToVariable: variableTable,
                     inBinOpTree: false)
 
@@ -104,7 +97,6 @@ proc feed(builder: ByteCodeBuilder, expression: Expression) =
             add(Opcode(kind: Store))
         else:
             raise newException(LibraryError, fmt"unsupported assign: {expression.token.kind}")
-
 
     of Unary:
         case expression.token.kind:
@@ -211,6 +203,11 @@ proc feed(builder: ByteCodeBuilder, expression: Expression) =
     else:
         # TODO: better errors
         raise newException(LibraryError, fmt"cannot turn to bytecode: {expression.kind}")
+
+proc build*(builder: ByteCodeBuilder, expression: Expression): ByteCode =
+    builder.feed(expression)
+    result = builder.code
+    builder.code = newByteCode()
 
 proc byteCode*(expression: Expression): ByteCode =
     let builder = newByteCodeBuilder()
