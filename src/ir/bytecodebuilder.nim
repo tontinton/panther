@@ -40,9 +40,12 @@ proc newByteCodeBuilder(builder: ByteCodeBuilder = nil): ByteCodeBuilder =
                     inBinOpTree: false)
 
 proc loadConst(builder: ByteCodeBuilder, variable: Variable): Opcode =
-    let index = builder.code.consts.len()
+    let length = builder.code.consts.len()    
+    for i in 0..<length:
+        if builder.code.consts[i] == variable:
+            return Opcode(kind: LoadConst, value: i)       
     builder.code.consts.add(variable)
-    return Opcode(kind: LoadConst, value: index)
+    return Opcode(kind: LoadConst, value: length)
 
 proc loadVar(builder: ByteCodeBuilder, name: string): Opcode =
     return Opcode(kind: LoadVar, value: builder.nameToVariable[name])
