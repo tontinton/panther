@@ -8,8 +8,13 @@ type
         typ*: Type  # `type` is a saved keyword in nim
         value*: string
 
-func `$`*(c: Variable): string =
-    &"{c.value} ({c.typ})"
+func pretty*(v: Variable, showType: bool = true): string =
+    result = v.value
+    if showType:
+        result &= &" ({v.typ})"
+
+func `$`*(v: Variable): string =
+    v.pretty()
 
 proc toVariable*(expression: Expression): Variable =
     if expression.kind != Literal:
