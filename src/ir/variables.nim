@@ -16,9 +16,6 @@ func pretty*(v: Variable, showType: bool = true): string =
 func `$`*(v: Variable): string =
     v.pretty()
 
-func `==`*(v: Variable, other: Variable): bool =
-    v.typ == other.typ and v.value == other.value
-
 proc toVariable*(expression: Expression): Variable =
     if expression.kind != Literal:
         raise newException(LibraryError, fmt"cannot const {expression.kind} expression")
