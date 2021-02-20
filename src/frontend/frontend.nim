@@ -74,7 +74,15 @@ proc parse(inputLexer: Lexer): Option[Expression] =
         return none[Expression]()
 
 proc parseText*(input: string): Option[Expression] =
-    newLexer(input).parse()
+    let lexer = newLexer(input)
+    try:
+        lexer.parse()
+    finally:
+        lexer.close()
 
 proc parseFile*(path: string): Option[Expression] =
-    newLexerFromFile(path).parse()
+    let lexer = newLexerFromFile(path)
+    try:
+        lexer.parse()
+    finally:
+        lexer.close()

@@ -125,7 +125,7 @@ proc inferType(expression: Expression, scope: Scope): Type =
             t.validateType(name)
             return t
         except KeyError:
-            raise newParseError(expression, fmt"the function {name} wasn't declared yet")
+            raise newParseError(expression, fmt"the function `{name}` wasn't declared yet")
 
     of Assign:
         let leftType = expression.assignee.inferType(scope)
