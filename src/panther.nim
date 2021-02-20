@@ -9,14 +9,17 @@ import bytecodebuilder
 import opcodes
 
 const TMP_ASM_FILE = "tmp_output.S"
+const DEFAULT_INPUT_FILE = "main.pan"
+const DEFAULT_OUTPUT_FILE = "output.o"
+const DEFAULT_TARGET = "x86_64-unknown-linux-gnu"
 
-proc printAst(input: string = "main.pan") =
+proc printAst(input: string = DEFAULT_INPUT_FILE) =
     let outputAst = input.parseFile()
     if outputAst.isSome():
         echo outputAst.get()
 
-proc printAsm(input: string = "main.pan",
-              target: string = "x86_64-unknown-linux-gnu") =
+proc printAsm(input: string = DEFAULT_INPUT_FILE,
+              target: string = DEFAULT_TARGET) =
     let outputAst = input.parseFile()
     if outputAst.isSome():
         let expression = outputAst.get()
@@ -26,16 +29,16 @@ proc printAsm(input: string = "main.pan",
             finally:
                 removeFile(TMP_ASM_FILE)
 
-proc compileFile(input: string = "main.pan",
-                 output: string = "output.o",
-                 target: string = "x86_64-unknown-linux-gnu",
+proc compileFile(input: string = DEFAULT_INPUT_FILE,
+                 output: string = DEFAULT_OUTPUT_FILE,
+                 target: string = DEFAULT_TARGET,
                  assembly: bool = false) =
     let outputAst = input.parseFile()
     if outputAst.isSome():
         let expression = outputAst.get()
         discard expression.compile(output, target, outputAsm=assembly)
 
-proc printByteCode(input: string = "main.pan") =
+proc printByteCode(input: string = DEFAULT_INPUT_FILE) =
     let outputAst = input.parseFile()
     if outputAst.isSome():
         echo outputAst.get().byteCode()
