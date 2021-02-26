@@ -93,7 +93,7 @@ proc feed(builder: ByteCodeBuilder, expression: Expression) =
             # ignore type of typed ident
             add(builder.storeVar(left.ident.value))
         of Unary:
-            builder.feed(left)
+            builder.feed(left.unaryExpr)
             add(Opcode(kind: Store))
         else:
             raise newException(LibraryError, fmt"unsupported assign: {expression.token.kind}")
@@ -111,6 +111,7 @@ proc feed(builder: ByteCodeBuilder, expression: Expression) =
 
     of Ident:
         add(builder.loadVar(expression.value))
+        add(Opcode(kind: Load))
 
     of ast.Cast:
         builder.feed(expression.castExpr)
