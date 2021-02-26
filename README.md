@@ -15,14 +15,18 @@ nimble build -d:release
 
 When ``main.pan`` looks like:
 ```nim
+let ITERATIONS = 25
+let ADDRESS = 10000
+
 proc fib(a: s32) -> s32:
     if a <= 2:
         return 1
     return fib(a - 1) + fib(a - 2)
 
 proc main() -> s32:
-    let a = 50
-    return fib(a)
+    let test = ADDRESS as s32*
+    *test = ITERATIONS
+    return fib(*test)
 ```
 
 Results in (after running `objdump -d output.o -M intel`):
@@ -33,29 +37,33 @@ output.o:     file format elf64-x86-64
 Disassembly of section .text:
 
 0000000000000000 <fib>:
-   0:   55                      push   rbp
-   1:   53                      push   rbx
-   2:   50                      push   rax
-   3:   89 fb                   mov    ebx,edi
-   5:   8d 7b ff                lea    edi,[rbx-0x1]
-   8:   e8 00 00 00 00          call   d <fib+0xd>
-   d:   89 c5                   mov    ebp,eax
-   f:   83 c3 fe                add    ebx,0xfffffffe
-  12:   89 df                   mov    edi,ebx
-  14:   e8 00 00 00 00          call   19 <fib+0x19>
-  19:   01 e8                   add    eax,ebp
-  1b:   48 83 c4 08             add    rsp,0x8
-  1f:   5b                      pop    rbx
-  20:   5d                      pop    rbp
-  21:   c3                      ret
-  22:   66 2e 0f 1f 84 00 00    nop    WORD PTR cs:[rax+rax*1+0x0]
-  29:   00 00 00
-  2c:   0f 1f 40 00             nop    DWORD PTR [rax+0x0]
+   0:   83 ff 02                cmp    edi,0x2
+   3:   7f 06                   jg     b <fib+0xb>
+   5:   b8 01 00 00 00          mov    eax,0x1
+   a:   c3                      ret
+   b:   55                      push   rbp
+   c:   53                      push   rbx
+   d:   50                      push   rax
+   e:   89 fb                   mov    ebx,edi
+  10:   8d 7b ff                lea    edi,[rbx-0x1]
+  13:   e8 00 00 00 00          call   18 <fib+0x18>
+  18:   89 c5                   mov    ebp,eax
+  1a:   83 c3 fe                add    ebx,0xfffffffe
+  1d:   89 df                   mov    edi,ebx
+  1f:   e8 00 00 00 00          call   24 <fib+0x24>
+  24:   01 e8                   add    eax,ebp
+  26:   48 83 c4 08             add    rsp,0x8
+  2a:   5b                      pop    rbx
+  2b:   5d                      pop    rbp
+  2c:   c3                      ret
+  2d:   0f 1f 00                nop    DWORD PTR [rax]
 
 0000000000000030 <main>:
   30:   50                      push   rax
-  31:   bf 32 00 00 00          mov    edi,0x32
-  36:   e8 00 00 00 00          call   3b <main+0xb>
-  3b:   59                      pop    rcx
-  3c:   c3                      ret
+  31:   c7 04 25 10 27 00 00    mov    DWORD PTR ds:0x2710,0x19
+  38:   19 00 00 00
+  3c:   bf 19 00 00 00          mov    edi,0x19
+  41:   e8 00 00 00 00          call   46 <main+0x16>
+  46:   59                      pop    rcx
+  47:   c3                      ret
 ```
