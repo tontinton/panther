@@ -17,6 +17,8 @@ type
         JumpFalse
         JumpTrue        
 
+        Not
+
         Add
         Subtract
         Multiply

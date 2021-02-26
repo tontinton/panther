@@ -103,6 +103,9 @@ proc feed(builder: ByteCodeBuilder, expression: Expression) =
         of Mul:
             builder.feed(expression.unaryExpr)
             add(Opcode(kind: Load))
+        of tokens.Not:
+            builder.feed(expression.unaryExpr)
+            add(Opcode(kind: opcodes.Not))
         else:
             raise newException(LibraryError, fmt"unsupported unary: {expression.token.kind}")
 
