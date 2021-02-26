@@ -4,6 +4,15 @@ The panther language is a language made for exploitations.
 It's main focus is **minimal code size** through code size 
 optimizations and compiling directly to a **shellcode** (position independent code).
 
+## Flow
+
+1. **Lexer**: Parse text file into tokens
+2. **Parser**: Parse tokens into AST
+3. **Analyzer**: Validate that the AST is correct panther syntax
+4. **Bytecode**: Parse AST into bytecode
+5. **LLVM**: Parse bytecode into LLVM IR
+6. **Optimizations + Backend**: llvm
+
 ## What can it do currently? 
 Currently, the panther binary can compile a single file using the llvm backend, with minimal type inference and type checking.
 
