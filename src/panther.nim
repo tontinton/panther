@@ -22,8 +22,8 @@ proc printAsm(input: string = DEFAULT_INPUT_FILE,
               target: string = DEFAULT_TARGET) =
     let outputAst = input.parseFile()
     if outputAst.isSome():
-        let expression = outputAst.get()
-        if expression.compile(TMP_ASM_FILE, target, outputAsm=true):
+        let code = outputAst.get().byteCode()
+        if code.compile(TMP_ASM_FILE, target, outputAsm=true):
             try:
                 echo readFile(TMP_ASM_FILE)
             finally:
@@ -35,8 +35,8 @@ proc compileFile(input: string = DEFAULT_INPUT_FILE,
                  assembly: bool = false) =
     let outputAst = input.parseFile()
     if outputAst.isSome():
-        let expression = outputAst.get()
-        discard expression.compile(output, target, outputAsm=assembly)
+        let code = outputAst.get().byteCode()
+        discard code.compile(output, target, outputAsm=assembly)
 
 proc printByteCode(input: string = DEFAULT_INPUT_FILE) =
     let outputAst = input.parseFile()
