@@ -12,14 +12,22 @@ import ir/[opcodes, variables]
 const GLOBAL_LEVEL = 0
 
 type
+    LLVMVar = ref object
+        llvmValue: llvm.ValueRef
+        typ: types.Type
+
     LLVMBackend* = ref object
         context: ContextRef
         module: ModuleRef
         builder: BuilderRef
         types: TableRef[types.TypeKind, llvm.TypeRef]
-        variables: TableRef[int, llvm.ValueRef]
-        stack: Stack[llvm.ValueRef]
+        variables: TableRef[int, LLVMVar]
+        functionsRetTypes: TableRef[string, types.Type]
+        stack: Stack[LLVMVar]
         level: int
+
+proc newLLVMVar(v: llvm.ValueRef, t: types.Type): LLVMVar =
+    LLVMVar(llvmValue: v, typ: t)
 
 proc newLLVMBackend*(): LLVMBackend =
     let context = llvm.getGlobalContext()
@@ -41,8 +49,9 @@ proc newLLVMBackend*(): LLVMBackend =
                 module: module,
                 builder: builder,
                 types: types,
-                variables: newTable[int, llvm.ValueRef](),
-                stack: Stack[llvm.ValueRef](),
+                variables: newTable[int, LLVMVar](),
+                functionsRetTypes: newTable[string, Type](),
+                stack: Stack[LLVMVar](),
                 level: GLOBAL_LEVEL)
 
 proc optimize(backend: LLVMBackend) =
@@ -105,23 +114,31 @@ proc getLLVMType(backend: LLVMBackend, typ: Type): llvm.TypeRef =
     for i in 0..<typ.ptrLevel:
         result = llvm.pointerType(result)
 
-proc createVariable(backend: LLVMBackend, index: int, typ: llvm.TypeRef): llvm.ValueRef =
+proc createVariable(backend: LLVMBackend, index: int, typ: Type): LLVMVar =
     let pre = backend.builder.getInsertBlock()
     let llvmFunc = pre.getBasicBlockParent()
     let entryBlock = llvmFunc.getEntryBasicBlock()
 
     llvm.positionBuilderAtEnd(backend.builder, entryBlock)
-    let variable = llvm.buildAlloca(backend.builder, typ, intToStr(index))
+    let variable = llvm.buildAlloca(backend.builder, backend.getLLVMType(typ), intToStr(index))
     llvm.positionBuilderAtEnd(backend.builder, pre)
 
-    return variable
+    newLLVMVar(variable, typ)
 
-proc createGlobal(backend: LLVMBackend, index: int, typ: llvm.TypeRef): llvm.ValueRef =
-    llvm.addGlobal(backend.module, typ, intToStr(index))
+proc createGlobal(backend: LLVMBackend, index: int, typ: Type): LLVMVar =
+    let global = llvm.addGlobal(backend.module, backend.getLLVMType(typ), intToStr(index))
+    newLLVMVar(global, typ)
 
-proc isReal(val: llvm.ValueRef): bool =
-    case val.typeOfX().getTypeKind():
-    of HalfTypeKind, FloatTypeKind, DoubleTypeKind, X86FP80TypeKind, FP128TypeKind, PPC_FP128TypeKind:
+proc isReal(val: LLVMVar): bool =
+    case val.typ.kind:
+    of Float32:
+        true
+    else:
+        false
+
+proc isSigned(val: LLVMVar): bool =
+    case val.typ.kind:
+    of Signed32:
         true
     else:
         false
@@ -129,35 +146,37 @@ proc isReal(val: llvm.ValueRef): bool =
 proc isGlobalScope(backend: LLVMBackend): bool =
     backend.level == GLOBAL_LEVEL
 
-proc isGlobalVariable(backend: LLVMBackend, val: llvm.ValueRef): bool =
-    llvm.getNamedGlobal(backend.module, val.getValueName()) != nil
+proc isGlobalVariable(backend: LLVMBackend, val: LLVMVar): bool =
+    llvm.getNamedGlobal(backend.module, val.llvmValue.getValueName()) != nil
 
-proc load(backend: LLVMBackend, variable: llvm.ValueRef): llvm.ValueRef =
-    if backend.isGlobalVariable(variable):
-        variable.getInitializer()
+proc load(backend: LLVMBackend, variable: LLVMVar): LLVMVar =
+    let v = if backend.isGlobalVariable(variable):
+        variable.llvmValue.getInitializer()
     else:
-        llvm.buildLoad(backend.builder, variable, "")
+        llvm.buildLoad(backend.builder, variable.llvmValue, "")
+    newLLVMVar(v, variable.typ)
 
-proc store(backend: LLVMBackend, variable: llvm.ValueRef, value: llvm.ValueRef) =
+proc store(backend: LLVMBackend, variable: LLVMVar, value: LLVMVar) =
     if backend.isGlobalVariable(variable):
-        llvm.setInitializer(variable, value)
-        llvm.setGlobalConstant(variable, llvm.False)
+        llvm.setInitializer(variable.llvmValue, value.llvmValue)
+        llvm.setGlobalConstant(variable.llvmValue, llvm.False)
     else:
-        discard llvm.buildStore(backend.builder, value, variable)
+        discard llvm.buildStore(backend.builder, value.llvmValue, variable.llvmValue)
 
-proc buildNot(backend: LLVMBackend, value: llvm.ValueRef): llvm.ValueRef =
+proc buildNot(backend: LLVMBackend, value: LLVMVar): LLVMVar =
     let cmp = llvm.buildICmp(backend.builder,
                              llvm.IntEQ,
-                             value,
-                             llvm.constInt(value.typeOfX(), 0, llvm.False),
+                             value.llvmValue,
+                             llvm.constInt(value.llvmValue.typeOfX(), 0, llvm.False),
                              "")
-    llvm.buildZExt(backend.builder, cmp, value.typeOfX(), "")
+    newLLVMVar(llvm.buildZExt(backend.builder, cmp, value.llvmValue.typeOfX(), ""),
+               Type(kind: Boolean))
 
 proc build(backend: LLVMBackend, code: ByteCode, startIndex: int = 0, stopIndex: int = code.opcodes.len()) =
-    template pop(): llvm.ValueRef =
+    template pop(): LLVMVar =
         backend.stack.pop()
 
-    template push(v: llvm.ValueRef) =
+    template push(v: LLVMVar) =
         backend.stack.push(v)
 
     var opcodeIndex = startIndex
@@ -165,7 +184,7 @@ proc build(backend: LLVMBackend, code: ByteCode, startIndex: int = 0, stopIndex:
     while opcodeIndex < stopIndex:
         let opcode = code.opcodes[opcodeIndex]
 
-        template buildJump(condition: llvm.ValueRef) =
+        template buildJump(condition: LLVMVar) =
             let startBlock = backend.builder.getInsertBlock()
             let llvmFunc = startBlock.getBasicBlockParent()
             let thenBlock = llvm.appendBasicBlockInContext(backend.context, llvmFunc, "then")
@@ -182,7 +201,7 @@ proc build(backend: LLVMBackend, code: ByteCode, startIndex: int = 0, stopIndex:
 
             # Return to the start block to add the conditional branch
             llvm.positionBuilderAtEnd(backend.builder, startBlock)
-            discard llvm.buildCondBr(backend.builder, condition, thenBlock, jumpBlock)
+            discard llvm.buildCondBr(backend.builder, condition.llvmValue, thenBlock, jumpBlock)
 
             llvm.positionBuilderAtEnd(backend.builder, jumpBlock)
 
@@ -193,7 +212,7 @@ proc build(backend: LLVMBackend, code: ByteCode, startIndex: int = 0, stopIndex:
             var variable = backend.variables.getOrDefault(opcode.value, nil)
             if variable == nil:
                 let createVar = if backend.isGlobalScope(): createGlobal else: createVariable
-                backend.variables[opcode.value] = createVar(backend, opcode.value, value.typeOfX())
+                backend.variables[opcode.value] = createVar(backend, opcode.value, value.typ)
                 variable = backend.variables[opcode.value]
 
             backend.store(variable, value)
@@ -230,33 +249,35 @@ proc build(backend: LLVMBackend, code: ByteCode, startIndex: int = 0, stopIndex:
             else:
                 raise newBackendError(fmt"unsupported const: {variableType.kind}")
 
-            push(llvmValue)
+            push(newLLVMVar(llvmValue, variableType))
 
         of Compare:
             let right = pop()
             let left = pop()
 
-            proc buildCmp(intPredicate: llvm.IntPredicate,
+            proc buildCmp(signedPredicate: llvm.IntPredicate,
+                          unsignedPredicate: llvm.IntPredicate,
                           realPredicate: llvm.RealPredicate): llvm.ValueRef =
                 if left.isReal():
-                    return llvm.buildFCmp(backend.builder, realPredicate, left, right, "")
+                    return llvm.buildFCmp(backend.builder, realPredicate, left.llvmValue, right.llvmValue, "")
+                elif left.isSigned():
+                    return llvm.buildICmp(backend.builder, signedPredicate, left.llvmValue, right.llvmValue, "")
                 else:
-                    # TODO: signed / unsigned
-                    return llvm.buildICmp(backend.builder, intPredicate, left, right, "")
+                    return llvm.buildICmp(backend.builder, unsignedPredicate, left.llvmValue, right.llvmValue, "")
 
             let condition = case opcode.compare:
             of Equal:
-                buildCmp(llvm.IntEQ, llvm.RealOEQ)
+                buildCmp(llvm.IntEQ, llvm.IntEQ, llvm.RealOEQ)
             of BiggerThan:
-                buildCmp(llvm.IntSGT, llvm.RealOGT)
+                buildCmp(llvm.IntSGT, llvm.IntUGT, llvm.RealOGT)
             of BiggerThanEqual:
-                buildCmp(llvm.IntSGE, llvm.RealOGE)
+                buildCmp(llvm.IntSGE, llvm.IntUGE, llvm.RealOGE)
             of SmallerThan:
-                buildCmp(llvm.IntSLT, llvm.RealOLT)
+                buildCmp(llvm.IntSLT, llvm.IntULT, llvm.RealOLT)
             of SmallerThanEqual:
-                buildCmp(llvm.IntSLE, llvm.RealOLE)
+                buildCmp(llvm.IntSLE, llvm.IntULE, llvm.RealOLE)
 
-            push(condition)
+            push(newLLVMVar(condition, Type(kind: Boolean)))
 
         of JumpFalse:
             let condition = pop()
@@ -274,21 +295,24 @@ proc build(backend: LLVMBackend, code: ByteCode, startIndex: int = 0, stopIndex:
             let left = pop()
 
             let f = if left.isReal(): llvm.buildFAdd else: llvm.buildAdd
-            push(f(backend.builder, left, right, ""))
+            let llvmValue = f(backend.builder, left.llvmValue, right.llvmValue, "")
+            push(newLLVMVar(llvmValue, left.typ))
 
         of Subtract:
             let right = pop()
             let left = pop()
 
             let f = if left.isReal(): llvm.buildFSub else: llvm.buildSub
-            push(f(backend.builder, left, right, ""))
+            let llvmValue = f(backend.builder, left.llvmValue, right.llvmValue, "")
+            push(newLLVMVar(llvmValue, left.typ))
 
         of Multiply:
             let right = pop()
             let left = pop()
 
             let f = if left.isReal(): llvm.buildFMul else: llvm.buildMul
-            push(f(backend.builder, left, right, ""))
+            let llvmValue = f(backend.builder, left.llvmValue, right.llvmValue, "")
+            push(newLLVMVar(llvmValue, left.typ))
 
         of Function:
             let name = opcode.name
@@ -310,16 +334,18 @@ proc build(backend: LLVMBackend, code: ByteCode, startIndex: int = 0, stopIndex:
             llvm.positionBuilderAtEnd(backend.builder, entryBlock)
 
             # TODO: better copy
-            var oldVariables = initTable[int, llvm.ValueRef]()
+            var oldVariables = initTable[int, LLVMVar]()
             for key in backend.variables.keys():
                 oldVariables[key] = backend.variables[key]
 
             # Now that we have created the entry block allocate the function arguments
             for i, t in opcode.arguments:
                 let index = i + backend.variables.len()
-                let variable = backend.createVariable(index, backend.getLLVMType(t))
-                discard llvm.buildStore(backend.builder, llvmFunc.getParam(cast[cuint](i)), variable)
+                let variable = backend.createVariable(index, t)
+                discard llvm.buildStore(backend.builder, llvmFunc.getParam(cast[cuint](i)), variable.llvmValue)
                 backend.variables[index] = variable
+
+            backend.functionsRetTypes[name] = opcode.ret
 
             inc(backend.level)
             backend.build(opcode.code)  # TODO: LLVMVerifyFunction
@@ -338,47 +364,49 @@ proc build(backend: LLVMBackend, code: ByteCode, startIndex: int = 0, stopIndex:
             var args: seq[llvm.ValueRef] = @[]
 
             for _ in 0..<llvmFunc.countParams():
-                args.add(pop())
+                args.add(pop().llvmValue)
 
             if llvmFunc.countParams() > 1:
                 args.reverse()
 
-            push(llvm.buildCall(backend.builder, llvmFunc, args, ""))
+            push(newLLVMVar(llvm.buildCall(backend.builder, llvmFunc, args, ""),
+                            backend.functionsRetTypes[name]))
 
         of Return:
-            discard llvm.buildRet(backend.builder, pop())
+            discard llvm.buildRet(backend.builder, pop().llvmValue)
 
         of Cast:
-            let llvmValue = pop()
-            let toLlvmType = backend.getLLVMType(opcode.toType)
+            let left = pop()
+            let right = opcode.toType
 
-            let leftKind = llvmValue.typeOfX().getTypeKind()
+            let toLlvmType = backend.getLLVMType(right)
+
+            let leftKind = left.llvmValue.typeOfX().getTypeKind()
             let rightKind = toLlvmType.getTypeKind()
-
-            template raiseUnsupportedCast() =
-                raise newBackendError(fmt"unsupported cast from {leftKind} to {rightKind}")
 
             let variable = case leftKind:
             of llvm.IntegerTypeKind:
                 case rightKind:
                 of llvm.PointerTypeKind:
-                    llvm.buildIntToPtr(backend.builder, llvmValue, toLlvmType, "")
+                    llvm.buildIntToPtr(backend.builder, left.llvmValue, toLlvmType, "")
                 else:
-                    raiseUnsupportedCast()
+                    # TODO: integer to integer signed / unsigned casts
+                    # reference: https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/basic-constructs/casts.html
+                    llvm.buildBitCast(backend.builder, left.llvmValue, toLlvmType, "")
 
             of llvm.PointerTypeKind:
                 case rightKind:
                 of llvm.PointerTypeKind:
-                    llvm.buildPointerCast(backend.builder, llvmValue, toLlvmType, "")
+                    llvm.buildPointerCast(backend.builder, left.llvmValue, toLlvmType, "")
                 of llvm.IntegerTypeKind:
-                    llvm.buildPtrToInt(backend.builder, llvmValue, toLlvmType, "")
+                    llvm.buildPtrToInt(backend.builder, left.llvmValue, toLlvmType, "")
                 else:
-                    raiseUnsupportedCast()
+                    llvm.buildBitCast(backend.builder, left.llvmValue, toLlvmType, "")
 
             else:
-                raiseUnsupportedCast()
+                llvm.buildBitCast(backend.builder, left.llvmValue, toLlvmType, "")
 
-            push(variable)
+            push(newLLVMVar(variable, right))
 
         else:
             raise newBackendError(fmt"unsupported opcode: {opcode.kind}")
