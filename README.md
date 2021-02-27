@@ -25,7 +25,7 @@ nimble build -d:release
 When ``main.pan`` looks like:
 ```nim
 let ITERATIONS = 25
-let ADDRESS = 10000
+let ADDRESS = 0x10000
 
 proc fib(a: s32) -> s32:
     if a <= 2:
@@ -69,7 +69,7 @@ Disassembly of section .text:
 
 0000000000000030 <main>:
   30:   50                      push   rax
-  31:   c7 04 25 10 27 00 00    mov    DWORD PTR ds:0x2710,0x19
+  31:   c7 04 25 00 00 01 00    mov    DWORD PTR ds:0x10000,0x19
   38:   19 00 00 00
   3c:   bf 19 00 00 00          mov    edi,0x19
   41:   e8 00 00 00 00          call   46 <main+0x16>

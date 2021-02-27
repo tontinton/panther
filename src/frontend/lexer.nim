@@ -61,6 +61,18 @@ proc readNumber(lexer: Lexer): string =
         else:
             break
 
+proc readHex(lexer: Lexer): string =
+    result = ""
+    var c = lexer.peekChar()
+    while c != '\0':
+        case c:
+        of '0'..'9', 'a'..'f', 'A'..'F':
+            discard lexer.readChar()
+            result &= c
+            c = lexer.peekChar()
+        else:
+            break
+
 proc readSymbol(lexer: Lexer): string =
     result = ""
     var c = lexer.peekChar()
@@ -214,9 +226,16 @@ iterator items*(lexer: Lexer): Token =
                 let value = lexer.readString()
                 yield newStr(value)
             of '0'..'9', '.':
-                lexer.setPosition(lexer.position() - 1)
-                let value = lexer.readNumber()
-                yield newNumber(value)
+                if c == '0' and lexer.peekChar() == 'x':
+                    # hex number
+                    discard lexer.readChar()
+                    let value = lexer.readHex()
+                    yield newNumber($fromHex[BiggestUInt](&"0x{value}"))
+                else:
+                    # regular number
+                    lexer.setPosition(lexer.position() - 1)
+                    let value = lexer.readNumber()
+                    yield newNumber(value)
             of 'A'..'Z', 'a'..'z':
                 lexer.setPosition(lexer.position() - 1)
                 let value = lexer.readSymbol()

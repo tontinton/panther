@@ -1,5 +1,5 @@
 let ITERATIONS = 25
-let ADDRESS = 10000
+let ADDRESS = 0x10000
 
 proc fib(a: s32) -> s32:
     if a <= 2:
