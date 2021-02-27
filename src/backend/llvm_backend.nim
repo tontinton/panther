@@ -44,6 +44,7 @@ proc newLLVMBackend*(): LLVMBackend =
     types[Signed32] = int32Type
     types[Float32] = floatType
     types[Boolean] = int8Type
+    types[String] = llvm.pointerType(int8Type)
 
     LLVMBackend(context: context,
                 module: module,
@@ -241,6 +242,8 @@ proc build(backend: LLVMBackend, code: ByteCode, startIndex: int = 0, stopIndex:
                 llvm.constInt(llvmType,
                               cast[culonglong](parseInt(variable.value)),
                               llvm.False)
+            of String:
+                llvm.constString(variable.value, variable.value.len().cuint, llvm.False)
             of Float32:
                 llvm.constRealOfString(llvmType, variable.value)
             of Boolean:
