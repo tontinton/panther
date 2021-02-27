@@ -277,11 +277,12 @@ proc analyze(expression: Expression, scope: Scope) =
                 if not paramExpr.isResultExpression():
                     raise newParseError(expression, fmt"{paramExpr[]} is an invalid function call parameter")
 
+                paramExpr.analyze(scope)
+
                 let inferredType = paramExpr.inferType(scope)
                 if paramType != inferredType:
                     raise newParseError(expression,
                                         fmt"types differ on function call `{name}`, {paramType} != {inferredType}")
-                paramExpr.analyze(scope)
 
         of Declaration:
             let declExpr = expression.declExpr
