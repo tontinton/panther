@@ -4,8 +4,6 @@ htmldocs/
 .idea
 panther.exe
 panther
-tests/test_frontend.exe
-tests/test_frontend
-tests/test_llvm_binding.exe
-tests/test_llvm_binding
+tests/test_*
+!tests/test*.nim
 output.o
