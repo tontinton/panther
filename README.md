@@ -1,3 +1,5 @@
+<img src="./logo.svg">
+
 ## Introduction
 The panther language is a language made for exploitations.
 
