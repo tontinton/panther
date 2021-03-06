@@ -13,8 +13,10 @@ import common/customerrors
 
 type
     Function = ref object
+        expression: Expression
         params: OrderedTableRef[string, Type]
         returnType: Type
+        implemented: bool  # To keep track of declarations vs implemented function
 
     Scope = ref object
         names: TableRef[string, Type]
@@ -22,8 +24,14 @@ type
         types: TableRef[string, Type]
         insideFunction: Option[string]
 
-func newFunction(params: OrderedTableRef[string, Type], returnType: Type): Function =
-    Function(params: params, returnType: returnType)
+func newFunction(expression: Expression,
+                 params: OrderedTableRef[string, Type],
+                 returnType: Type,
+                 implemented: bool): Function =
+    Function(expression: expression,
+             params: params,
+             returnType: returnType,
+             implemented: implemented)
 
 func newGlobalScope(): Scope =
     var types = newTable[string, Type]()
@@ -156,10 +164,10 @@ proc analyze(expression: Expression, scope: Scope) =
             except ParseError as e:
                 addError(e)
 
-    func validateUnique(scope: Scope, name: string) =
+    func validateUnique(scope: Scope, name: string, checkFunctions: bool = true) =
         if name in scope.names:
             raise newParseError(expression, fmt"`{name}` is already declared as a variable")
-        if name in scope.functions:
+        if checkFunctions and name in scope.functions:
             raise newParseError(expression, fmt"`{name}` is already declared as a function")
         if name in scope.types:
             raise newParseError(expression, fmt"`{name}` is already declared as a type")
@@ -177,7 +185,7 @@ proc analyze(expression: Expression, scope: Scope) =
         scope.names[key] = val
 
     proc add(scope: Scope, key: string, val: Function) =
-        scope.validateUnique(key)
+        # No need to validate uniqueness, as we expect the caller to have validated already
         scope.functions[key] = val
 
     proc fixedUndeterminedType(t: Type): Type =
@@ -191,6 +199,7 @@ proc analyze(expression: Expression, scope: Scope) =
     withErrorCatching:
         case expression.kind:
         of Block:
+            let funcCount = scope.functions.len()
             var returnFound = false
             for exp in expression.expressions:
                 withErrorCatching:
@@ -203,12 +212,35 @@ proc analyze(expression: Expression, scope: Scope) =
 
                     exp.analyze(scope)
 
+            if scope.functions.len() > funcCount:
+                # Functions were added, check that they are all implemented.
+                # Currently, checking that ALL functions are implemented not only the ones added.
+                for (name, f) in scope.functions.pairs():
+                    withErrorCatching:
+                        if not f.implemented:
+                            raise newParseError(f.expression, fmt"`{name}` was declared, but never implemented")
+
         of FunctionDeclaration:
+            expression.declParams.validateKind(Block)
+
             let name = expression.declName
 
-            scope.validateUnique(name)
+            case expression.implementation.kind:
+            of Block, Empty:
+                discard
+            else:
+                let msg = fmt"expected nothing or an implementation block for {name}, not {expression.implementation.kind}"
+                raise newParseError(expression, msg)
 
-            expression.declParams.validateKind(Block)
+            let declaredFunc = scope.functions.getOrDefault(name, nil)
+            if declaredFunc != nil:
+                if declaredFunc.implemented:
+                    raise newParseError(expression, fmt"`{name}` is already declared as a function")
+                elif expression.implementation.kind != Block:
+                    raise newParseError(expression, fmt"expected `{name}` to have an implementation")
+
+            # No need to check function uniqueness, we just did that ourselves
+            scope.validateUnique(name, checkFunctions=false)
 
             if expression.returnType.kind == Undetermined:
                 expression.returnType = expression.returnType.fixedUndeterminedType()
@@ -229,18 +261,24 @@ proc analyze(expression: Expression, scope: Scope) =
                 else:
                     raise newParseError(expression, fmt"{exp[]} is an invalid function parameter")
 
-            let funcDescription = newFunction(paramsDescription, expression.returnType)
+            let funcDescription = newFunction(expression,
+                                              paramsDescription,
+                                              expression.returnType,
+                                              expression.implementation.kind == Block)
             scope.add(name, funcDescription)
-            functionScope.add(name, funcDescription)
-    
-            expression.implementation.analyze(functionScope)
-            let expressions = expression.implementation.expressions
-            if expressions.len() == 0 or expressions[expressions.len() - 1].kind != Return:
-                let whatToReturn = expression.returnType.defaultExpression(expression.token)
-                let returnExpression = Expression(kind: Return,
-                                                  retExpr: whatToReturn,
-                                                  token: expression.token)
-                expression.implementation.expressions.add(returnExpression)
+
+            if expression.implementation.kind == Block:
+                functionScope.add(name, funcDescription)
+                expression.implementation.analyze(functionScope)
+
+                # Add return expression if needed at the end of the function
+                let expressions = expression.implementation.expressions
+                if expressions.len() == 0 or expressions[expressions.len() - 1].kind != Return:
+                    let whatToReturn = expression.returnType.defaultExpression(expression.token)
+                    let returnExpression = Expression(kind: Return,
+                                                      retExpr: whatToReturn,
+                                                      token: expression.token)
+                    expression.implementation.expressions.add(returnExpression)
 
         of Return:
             withSome scope.insideFunction:
