@@ -202,8 +202,35 @@ proc feed(builder: ByteCodeBuilder, expression: Expression) =
                 discard
 
     of IfElseThen:
+        let beforeIf = builder.code.opcodes.len()
+
         builder.feed(expression.ifThen)
-        builder.feed(expression.otherwise)
+
+        let lastOpcode = builder.code.opcodes[builder.code.opcodes.len() - 1]
+        let flowBreak = lastOpcode.kind == opcodes.Return
+
+        if flowBreak:
+            # The flow already breaks, no need to enter a jump opcode
+            builder.feed(expression.otherwise)
+        else:
+            var jmp = Opcode(kind: Jump, value: -1)
+            add(jmp)
+            let afterJump = builder.code.opcodes.len()
+
+            builder.feed(expression.otherwise)
+            let afterElse = builder.code.opcodes.len()
+
+            jmp.value = afterElse
+
+            # TODO: fix this mess, everytime I add a jump instruction it destroys the whole flow
+            for i in beforeIf..<afterJump:
+                case builder.code.opcodes[i].kind:
+                of JumpTrue:
+                    inc(builder.code.opcodes[i].value)
+                of JumpFalse:
+                    builder.code.opcodes[i].value = afterJump
+                else:
+                    discard
 
     of Empty:
         discard

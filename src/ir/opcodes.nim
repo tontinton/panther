@@ -15,7 +15,8 @@ type
 
         Compare
         JumpFalse
-        JumpTrue        
+        JumpTrue
+        Jump
 
         Not
 
@@ -39,7 +40,7 @@ type
 
     Opcode* = ref object
         case kind*: OpcodeKind
-        of StoreVar, LoadVar, JumpFalse, JumpTrue, LoadConst:
+        of StoreVar, LoadVar, JumpFalse, JumpTrue, Jump, LoadConst:
             value*: int
         of Function:
             name*: string
@@ -69,7 +70,7 @@ func pretty(code: ByteCode, tabs: uint = 0): string
 
 func pretty(opcode: Opcode, tabs: uint = 0, code: ByteCode = nil): string =
     case opcode.kind:
-    of StoreVar, LoadVar, JumpFalse, JumpTrue:
+    of StoreVar, LoadVar, JumpFalse, JumpTrue, Jump:
         result = &"{opcode.kind} {opcode.value}"
 
     of LoadConst:
