@@ -16,6 +16,11 @@ type
         llvmValue: llvm.ValueRef
         typ: types.Type
 
+    LLVMJump = ref object
+        preJumpBlock: llvm.BasicBlockRef
+        jumpBlock: llvm.BasicBlockRef
+        condition: LLVMVar
+
     LLVMBackend* = ref object
         context: ContextRef
         module: ModuleRef
@@ -26,8 +31,18 @@ type
         stack: Stack[LLVMVar]
         level: int
 
+        # For each jump opcode, we create a basic block and put it inside this table.
+        # Once, we reach an opcode index that resides inside this table,
+        # we go back to the basic block and append a jump instruction.
+        jumps: TableRef[int, seq[LLVMJump]]
+
 proc newLLVMVar(v: llvm.ValueRef, t: types.Type): LLVMVar =
     LLVMVar(llvmValue: v, typ: t)
+
+proc newLLVMJump(preJump: llvm.BasicBlockRef,
+                 jump: llvm.BasicBlockRef,
+                 condition: LLVMVar = nil): LLVMJump =
+    LLVMJump(preJumpBlock: preJump, jumpBlock: jump, condition: condition)
 
 proc newLLVMBackend*(): LLVMBackend =
     let context = llvm.getGlobalContext()
@@ -53,7 +68,8 @@ proc newLLVMBackend*(): LLVMBackend =
                 variables: newTable[int, LLVMVar](),
                 functionsRetTypes: newTable[string, Type](),
                 stack: Stack[LLVMVar](),
-                level: GLOBAL_LEVEL)
+                level: GLOBAL_LEVEL,
+                jumps: newTable[int, seq[LLVMJump]]())
 
 proc optimize(backend: LLVMBackend) =
     # TODO: align-all-blocks=1 / align-all-functions=1
@@ -173,38 +189,61 @@ proc buildNot(backend: LLVMBackend, value: LLVMVar): LLVMVar =
     newLLVMVar(llvm.buildZExt(backend.builder, cmp, value.llvmValue.typeOfX(), ""),
                Type(kind: Boolean))
 
-proc build(backend: LLVMBackend, code: ByteCode, startIndex: int = 0, stopIndex: int = code.opcodes.len()) =
+proc buildJump(backend: LLVMBackend, jumpTo: int, condition: LLVMVar = nil) =
+    let startBlock = backend.builder.getInsertBlock()
+    let llvmFunc = startBlock.getBasicBlockParent()
+
+    let preJumpBlock = llvm.appendBasicBlockInContext(backend.context, llvmFunc, "prejump")
+
+    if llvm.getBasicBlockTerminator(startBlock) == nil:
+        llvm.positionBuilderAtEnd(backend.builder, startBlock)
+        discard llvm.buildBr(backend.builder, preJumpBlock)
+    llvm.positionBuilderAtEnd(backend.builder, preJumpBlock)
+
+    let jumpBlock = llvm.appendBasicBlockInContext(backend.context, llvmFunc, "jump")
+    llvm.positionBuilderAtEnd(backend.builder, jumpBlock)
+
+    if not backend.jumps.contains(jumpTo):
+        backend.jumps[jumpTo] = @[]
+
+    backend.jumps[jumpTo].add(newLLVMJump(preJumpBlock, jumpBlock, condition=condition))
+
+proc build(backend: LLVMBackend, code: ByteCode) =
     template pop(): LLVMVar =
         backend.stack.pop()
 
     template push(v: LLVMVar) =
         backend.stack.push(v)
 
-    var opcodeIndex = startIndex
+    var opcodeIndex = 0
 
-    while opcodeIndex < stopIndex:
+    while opcodeIndex < code.opcodes.len():
         let opcode = code.opcodes[opcodeIndex]
 
-        template buildJump(condition: LLVMVar) =
+        let blocks = backend.jumps.getOrDefault(opcodeIndex, @[])
+        if blocks.len() > 0:
+            # Create jumps to here
             let startBlock = backend.builder.getInsertBlock()
             let llvmFunc = startBlock.getBasicBlockParent()
-            let thenBlock = llvm.appendBasicBlockInContext(backend.context, llvmFunc, "then")
-            llvm.positionBuilderAtEnd(backend.builder, thenBlock)
+            let hereBlock = llvm.appendBasicBlockInContext(backend.context, llvmFunc, "here")
+            llvm.positionBuilderAtEnd(backend.builder, hereBlock)
 
-            backend.build(code, startIndex=opcodeIndex + 1, stopIndex=opcode.value)
-            opcodeIndex = opcode.value - 1
+            for b in blocks:
+                llvm.positionBuilderAtEnd(backend.builder, b.preJumpBlock)
 
-            # After generating 'then' we fetch the end of the block
-            discard backend.builder.getInsertBlock()
+                if b.condition != nil:
+                    discard llvm.buildCondBr(backend.builder, b.condition.llvmValue, b.jumpBlock, hereBlock)
+                else:
+                    discard llvm.buildBr(backend.builder, hereBlock)
 
-            let jumpBlock = llvm.appendBasicBlockInContext(backend.context, llvmFunc, "jump")
-            llvm.positionBuilderAtEnd(backend.builder, jumpBlock)
+                if llvm.getBasicBlockTerminator(b.jumpBlock) == nil:
+                    llvm.positionBuilderAtEnd(backend.builder, b.jumpBlock)
+                    discard llvm.buildBr(backend.builder, hereBlock)
 
-            # Return to the start block to add the conditional branch
-            llvm.positionBuilderAtEnd(backend.builder, startBlock)
-            discard llvm.buildCondBr(backend.builder, condition.llvmValue, thenBlock, jumpBlock)
+            llvm.positionBuilderAtEnd(backend.builder, hereBlock)
 
-            llvm.positionBuilderAtEnd(backend.builder, jumpBlock)
+            # Clear handled jumps
+            backend.jumps.del(opcodeIndex)
 
         case opcode.kind:
         of StoreVar:
@@ -283,12 +322,13 @@ proc build(backend: LLVMBackend, code: ByteCode, startIndex: int = 0, stopIndex:
             push(newLLVMVar(condition, Type(kind: Boolean)))
 
         of JumpFalse:
-            let condition = pop()
-            buildJump(condition)
+            backend.buildJump(opcode.value, condition=pop())
 
         of JumpTrue:
-            let condition = backend.buildNot(pop())
-            buildJump(condition)
+            backend.buildJump(opcode.value, condition=backend.buildNot(pop()))
+
+        of opcodes.Jump:
+            backend.buildJump(opcode.value)
 
         of opcodes.Not:
             push(backend.buildNot(pop()))
@@ -382,7 +422,10 @@ proc build(backend: LLVMBackend, code: ByteCode, startIndex: int = 0, stopIndex:
                             backend.functionsRetTypes[name]))
 
         of Return:
-            discard llvm.buildRet(backend.builder, pop().llvmValue)
+            # TODO: buildRetVoid when needed
+            let val = pop()
+            if llvm.getBasicBlockTerminator(backend.builder.getInsertBlock()) == nil:
+                discard llvm.buildRet(backend.builder, val.llvmValue)
 
         of Cast:
             let left = pop()
