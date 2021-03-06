@@ -320,43 +320,47 @@ proc build(backend: LLVMBackend, code: ByteCode, startIndex: int = 0, stopIndex:
         of Function:
             let name = opcode.name
 
-            let retType = backend.getLLVMType(opcode.ret)
-            var paramTypes: seq[llvm.TypeRef] = @[]
+            var llvmFunc = llvm.getNamedFunction(backend.module, name)
+            if llvmFunc == nil:
+                # Create function in llvm
+                let retType = backend.getLLVMType(opcode.ret)
+                var paramTypes: seq[llvm.TypeRef] = @[]
 
-            for t in opcode.arguments:
-                paramTypes.add(backend.getLLVMType(t))
+                for t in opcode.arguments:
+                    paramTypes.add(backend.getLLVMType(t))
 
-            let funcType = llvm.functionType(retType, paramTypes)
-            let llvmFunc = llvm.addFunction(backend.module, name, funcType)
+                let funcType = llvm.functionType(retType, paramTypes)
+                llvmFunc = llvm.addFunction(backend.module, name, funcType)
 
-            for i, t in opcode.arguments:
-                let index = i + backend.variables.len()
-                llvmFunc.getParam(cast[cuint](i)).setValueName(intToStr(index))
+                for i, t in opcode.arguments:
+                    let index = i + backend.variables.len()
+                    llvmFunc.getParam(cast[cuint](i)).setValueName(intToStr(index))
+                
+                backend.functionsRetTypes[name] = opcode.ret
 
-            let entryBlock = llvm.appendBasicBlockInContext(backend.context, llvmFunc, "entry")
-            llvm.positionBuilderAtEnd(backend.builder, entryBlock)
+            if opcode.code.opcodes.len() > 0:
+                let entryBlock = llvm.appendBasicBlockInContext(backend.context, llvmFunc, "entry")
+                llvm.positionBuilderAtEnd(backend.builder, entryBlock)
 
-            # TODO: better copy
-            var oldVariables = initTable[int, LLVMVar]()
-            for key in backend.variables.keys():
-                oldVariables[key] = backend.variables[key]
+                # TODO: better copy
+                var oldVariables = initTable[int, LLVMVar]()
+                for key in backend.variables.keys():
+                    oldVariables[key] = backend.variables[key]
 
-            # Now that we have created the entry block allocate the function arguments
-            for i, t in opcode.arguments:
-                let index = i + backend.variables.len()
-                let variable = backend.createVariable(index, t)
-                discard llvm.buildStore(backend.builder, llvmFunc.getParam(cast[cuint](i)), variable.llvmValue)
-                backend.variables[index] = variable
+                # Now that we have created the entry block allocate the function arguments
+                for i, t in opcode.arguments:
+                    let index = i + backend.variables.len()
+                    let variable = backend.createVariable(index, t)
+                    discard llvm.buildStore(backend.builder, llvmFunc.getParam(cast[cuint](i)), variable.llvmValue)
+                    backend.variables[index] = variable
 
-            backend.functionsRetTypes[name] = opcode.ret
+                inc(backend.level)
+                backend.build(opcode.code)  # TODO: LLVMVerifyFunction
+                dec(backend.level)
 
-            inc(backend.level)
-            backend.build(opcode.code)  # TODO: LLVMVerifyFunction
-            dec(backend.level)
-
-            backend.variables.clear()
-            for key in oldVariables.keys():
-                backend.variables[key] = oldVariables[key]
+                backend.variables.clear()
+                for key in oldVariables.keys():
+                    backend.variables[key] = oldVariables[key]
 
         of opcodes.Call:
             let name = opcode.call
