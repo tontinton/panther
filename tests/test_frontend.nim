@@ -19,6 +19,7 @@ const EXPECTED_OUTPUT = """
           ),
         ]
       return type: Signed32
+      extern: false
       implementation:
         [
           (
@@ -93,6 +94,7 @@ const EXPECTED_OUTPUT = """
           ),
         ]
       return type: Boolean
+      extern: false
       implementation:
         [
           (
@@ -137,6 +139,7 @@ const EXPECTED_OUTPUT = """
         [
         ]
       return type: Signed32
+      extern: false
       implementation:
         [
           (

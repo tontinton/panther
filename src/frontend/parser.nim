@@ -259,6 +259,19 @@ proc nextExpression(parser: Parser,
             raise newParseError(token, "`->` can only come after a function declaration")
         return some(prev)
 
+    of Extern:
+        let expression = parser.nextExpression(state)
+        if expression.isNone():
+            raise newParseError(token, &"got an empty expression after {Extern}")
+
+        let decl = expression.get()
+        if decl.kind != FunctionDeclaration:
+            raise newParseError(token,
+                                &"expected a {FunctionDeclaration} expression after {Extern}, not {decl.kind}")
+
+        decl.extern = true
+        return expression
+
     of Proc:
         if state.index < state.tokens.len() and state.tokens[state.index].kind == Symbol:
             let expression = parser.nextExpression(state)
@@ -283,6 +296,7 @@ proc nextExpression(parser: Parser,
                                             declParams: head.params,
                                             returnType: returnType,
                                             implementation: procBlock,
+                                            extern: false,
                                             token: token))
                 none:
                     raise newParseError(token, fmt"expected an implementation for {head.name}")

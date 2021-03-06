@@ -217,7 +217,7 @@ proc analyze(expression: Expression, scope: Scope) =
                 # Currently, checking that ALL functions are implemented not only the ones added.
                 for (name, f) in scope.functions.pairs():
                     withErrorCatching:
-                        if not f.implemented:
+                        if not f.implemented and not f.expression.extern:
                             raise newParseError(f.expression, fmt"`{name}` was declared, but never implemented")
 
         of FunctionDeclaration:
@@ -226,7 +226,11 @@ proc analyze(expression: Expression, scope: Scope) =
             let name = expression.declName
 
             case expression.implementation.kind:
-            of Block, Empty:
+            of Block:
+                if expression.extern:
+                    # TODO: warning instead?
+                    raise newParseError(expression, "Implemented an extern function?")
+            of Empty:
                 discard
             else:
                 let msg = fmt"expected nothing or an implementation block for {name}, not {expression.implementation.kind}"

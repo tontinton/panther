@@ -58,6 +58,7 @@ type
             declParams*: Expression
             returnType*: Type
             implementation*: Expression
+            extern*: bool
         of FunctionCall:
             name*: string
             params*: Expression
@@ -154,6 +155,7 @@ func formatTreeString(expression: Expression, tabs: uint = 0): string =
   {t}params:
 {expression.declParams.formatTreeString(tabs + 2)}
   {t}return type: {expression.returnType}
+  {t}extern: {expression.extern}
   {t}implementation:
 {expression.implementation.formatTreeString(tabs + 2)}"""
 
