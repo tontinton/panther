@@ -255,6 +255,7 @@ iterator items*(lexer: Lexer): Token =
                 of "or": yield newToken(Or, length=length)
                 of "not": yield newToken(Not, length=length)
                 of "as": yield newToken(As, length=length)
+                of "extern": yield newToken(Extern, length=length)
                 else: yield newSymbol(value)
             else:
                 yield newUnknown($c)

@@ -49,6 +49,7 @@ type
         Not
         Ampersand
         As
+        Extern
 
         SmallArrow
 
