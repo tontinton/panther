@@ -332,6 +332,8 @@ proc build(backend: LLVMBackend, code: ByteCode, startIndex: int = 0, stopIndex:
                 let funcType = llvm.functionType(retType, paramTypes)
                 llvmFunc = llvm.addFunction(backend.module, name, funcType)
 
+                llvm.setFunctionCallConv(llvmFunc, llvm.CCallConv.cuint)
+
                 for i, t in opcode.arguments:
                     let index = i + backend.variables.len()
                     llvmFunc.getParam(cast[cuint](i)).setValueName(intToStr(index))
