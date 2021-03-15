@@ -236,7 +236,7 @@ iterator items*(lexer: Lexer): Token =
                     lexer.setPosition(lexer.position() - 1)
                     let value = lexer.readNumber()
                     yield newNumber(value)
-            of 'A'..'Z', 'a'..'z':
+            of 'A'..'Z', 'a'..'z', '_':
                 lexer.setPosition(lexer.position() - 1)
                 let value = lexer.readSymbol()
                 let length = value.len()
