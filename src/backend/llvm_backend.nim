@@ -144,6 +144,7 @@ proc createVariable(backend: LLVMBackend, index: int, typ: Type): LLVMVar =
 
 proc createGlobal(backend: LLVMBackend, index: int, typ: Type): LLVMVar =
     let global = llvm.addGlobal(backend.module, backend.getLLVMType(typ), intToStr(index))
+    llvm.setGlobalConstant(global, llvm.False)
     newLLVMVar(global, typ)
 
 proc isReal(val: LLVMVar): bool =
@@ -163,20 +164,16 @@ proc isSigned(val: LLVMVar): bool =
 proc isGlobalScope(backend: LLVMBackend): bool =
     backend.level == GLOBAL_LEVEL
 
-proc isGlobalVariable(backend: LLVMBackend, val: LLVMVar): bool =
-    llvm.getNamedGlobal(backend.module, val.llvmValue.getValueName()) != nil
-
 proc load(backend: LLVMBackend, variable: LLVMVar): LLVMVar =
-    let v = if backend.isGlobalVariable(variable):
+    let v = if backend.isGlobalScope():
         variable.llvmValue.getInitializer()
     else:
         llvm.buildLoad(backend.builder, variable.llvmValue, "")
     newLLVMVar(v, variable.typ)
 
 proc store(backend: LLVMBackend, variable: LLVMVar, value: LLVMVar) =
-    if backend.isGlobalVariable(variable):
+    if backend.isGlobalScope():
         llvm.setInitializer(variable.llvmValue, value.llvmValue)
-        llvm.setGlobalConstant(variable.llvmValue, llvm.False)
     else:
         discard llvm.buildStore(backend.builder, value.llvmValue, variable.llvmValue)
 
