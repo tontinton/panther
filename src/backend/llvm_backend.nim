@@ -10,6 +10,7 @@ import common/[types, customerrors]
 import ir/[opcodes, variables]
 
 const GLOBAL_LEVEL = 0
+const OUTPUT_SECTION = ".shell"
 
 type
     LLVMVar = ref object
@@ -156,6 +157,7 @@ proc createLocalVariable(backend: LLVMBackend, index: int, typ: Type): LLVMVar =
 proc createGlobal(backend: LLVMBackend, index: int, typ: Type): LLVMVar =
     let global = llvm.addGlobal(backend.module, backend.getLLVMType(typ), intToStr(index))
     llvm.setGlobalConstant(global, llvm.False)
+    llvm.setSection(global, OUTPUT_SECTION)
     newLLVMVar(global, typ)
 
 proc createVariable(backend: LLVMBackend, index: int, typ: Type): LLVMVar =
@@ -381,6 +383,7 @@ proc build(backend: LLVMBackend, code: ByteCode) =
                 let funcType = llvm.functionType(llvmRetType, paramTypes)
                 llvmFunc = llvm.addFunction(backend.module, name, funcType)
 
+                llvm.setSection(llvmFunc, OUTPUT_SECTION)
                 llvm.setFunctionCallConv(llvmFunc, llvm.CCallConv.cuint)
 
                 for i, (_, t) in opcode.funcType.params:
