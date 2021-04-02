@@ -433,6 +433,9 @@ proc build(backend: LLVMBackend, code: ByteCode) =
             if llvm.getBasicBlockTerminator(backend.builder.getInsertBlock()) == nil:
                 discard llvm.buildRet(backend.builder, val.llvmValue)
 
+        of ReturnNothing:
+            discard llvm.buildRetVoid(backend.builder)
+
         of Cast:
             let left = pop()
             let right = opcode.toType
