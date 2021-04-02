@@ -14,7 +14,7 @@ import common/customerrors
 type
     Function = ref object
         expression: Expression
-        params: OrderedTableRef[string, Type]
+        params: seq[(string, Type)]
         returnType: Type
         implemented: bool  # To keep track of declarations vs implemented function
 
@@ -25,7 +25,7 @@ type
         insideFunction: Option[string]
 
 func newFunction(expression: Expression,
-                 params: OrderedTableRef[string, Type],
+                 params: seq[(string, Type)],
                  returnType: Type,
                  implemented: bool): Function =
     Function(expression: expression,
@@ -60,23 +60,27 @@ proc newFunctionScope(scope: Scope, funcName: string): Scope =
     Scope(names: names, functions: functions, types: types, insideFunction: some(funcName))
 
 proc defaultExpression(typ: Type, token: Token): Expression =
-    case typ.kind:
-    of Signed32, Unsigned32, Float32:
-        return Expression(kind: Literal, literalType: typ, literal: "0", token: token)
-    of String:
-        return Expression(kind: Literal, literalType: typ, literal: "", token: token)
-    of Boolean:
-        return Expression(kind: Literal, literalType: typ, literal: BOOLEAN_FALSE, token: token)
+    withSome typ.defaultValue():
+        some val:
+            Expression(kind: Literal, literalType: typ, literal: val, token: token)
+        none:
+            Expression(kind: Empty)
+
+proc isUndetermined(t: Type): bool =
+    case t.kind:
+    of Undetermined, UndeterminedProcedure:
+        true
     else:
-        return Expression(kind: Empty)
+        false
 
 proc inferType(expression: Expression, scope: Scope): Type =
     proc validateType(t: Type, name: string) =
+        if t.isUndetermined():
+            raise newParseError(expression, fmt"`{name}` wasn't patched to a valid type")
+
         case t.kind:
         of Auto:
             raise newParseError(expression, fmt"could not infer from a non inferred {t.kind} `{name}`")
-        of Undetermined:
-            raise newParseError(expression, fmt"`{name}` wasn't patched to a valid type")
         else:
             discard
 
@@ -188,13 +192,23 @@ proc analyze(expression: Expression, scope: Scope) =
         # No need to validate uniqueness, as we expect the caller to have validated already
         scope.functions[key] = val
 
-    proc fixedUndeterminedType(t: Type): Type =
-        let typeName = t.value
-        let ptrLevel = t.ptrLevel
-        try:
-            return Type(kind: scope.types[typeName].kind, ptrLevel: ptrLevel)
-        except KeyError:
-            raise newParseError(expression, fmt"the type `{typeName}` wasn't declared yet")
+    proc fixedUndeterminedType(undetermined: Type): Type =
+        case undetermined.kind:
+        of Undetermined:
+            let typeName = undetermined.value
+            let ptrLevel = undetermined.ptrLevel
+            try:
+                return Type(kind: scope.types[typeName].kind, ptrLevel: ptrLevel)
+            except KeyError:
+                raise newParseError(expression, fmt"the type `{typeName}` wasn't declared yet")
+        of UndeterminedProcedure:
+            var params: seq[(string, Type)] = @[]
+            for (name, typ) in undetermined.params:
+                params.add((name, typ.fixedUndeterminedType()))
+            return Type(kind: Procedure, params: params, ret: undetermined.ret.fixedUndeterminedType())
+        else:
+            # The type is already determined, just return it
+            return undetermined
 
     withErrorCatching:
         case expression.kind:
@@ -246,18 +260,18 @@ proc analyze(expression: Expression, scope: Scope) =
             # No need to check function uniqueness, we just did that ourselves
             scope.validateUnique(name, checkFunctions=false)
 
-            if expression.returnType.kind == Undetermined:
+            if expression.returnType.isUndetermined():
                 expression.returnType = expression.returnType.fixedUndeterminedType()
 
             let functionScope = newFunctionScope(scope, name)
-            var paramsDescription = newOrderedTable[string, Type]()
+            var paramsDescription = newSeq[(string, Type)]()
 
             for exp in expression.declParams.expressions:
                 case exp.kind:
                 of TypedIdent:
                     exp.analyze(scope)
                     functionScope.add(exp.ident.value, exp.identType)
-                    paramsDescription[exp.ident.value] = exp.identType
+                    paramsDescription.add((exp.ident.value, exp.identType))
                 of Ident:
                     raise newParseError(expression, fmt"`{exp.value}` has no type")
                 of Assign:
@@ -315,7 +329,8 @@ proc analyze(expression: Expression, scope: Scope) =
                 raise newParseError(expression,
                                     fmt"`{name}` expected {function.params.len()} arguments, got {paramExpressions.len()}")
 
-            for (paramExpr, paramType) in zip(paramExpressions, toSeq(function.params.values())):
+            for (paramExpr, param) in zip(paramExpressions, function.params):
+                let (_, paramType) = param
                 if not paramExpr.isResultExpression():
                     raise newParseError(expression, fmt"{paramExpr[]} is an invalid function call parameter")
 
@@ -334,20 +349,29 @@ proc analyze(expression: Expression, scope: Scope) =
                 let left = declExpr.assignee
                 let right = declExpr.assignExpr
 
-                case left.kind:
+                let (assigneeName, assigneeType) = case left.kind:
                 of Ident:
                     right.analyze(scope)
-                    let t = right.inferType(scope)
-                    scope.add(left.value, t)
+                    let identType = right.inferType(scope)
+                    scope.add(left.value, identType)
                     declExpr.assignee = Expression(kind: TypedIdent,
-                                                   identType: t,
+                                                   identType: identType,
                                                    ident: left,
                                                    token: left.token)
+                    (left.value, identType)
                 of TypedIdent:
                     left.analyze(scope)
                     scope.add(left.ident.value, left.identType)
+                    (left.ident.value, left.identType)
                 else:
                     raise newParseError(expression, fmt"cannot assign to {expression.assignee.kind}")
+
+                if assigneeType.kind == Procedure:
+                    let funcDescription = newFunction(expression,
+                                                      assigneeType.params,
+                                                      assigneeType.ret,
+                                                      true)
+                    scope.add(assigneeName, funcDescription)
 
                 declExpr.analyze(scope)
             of Ident, TypedIdent:
@@ -357,7 +381,7 @@ proc analyze(expression: Expression, scope: Scope) =
 
         of TypedIdent:
             expression.ident.validateKind(Ident)
-            if expression.identType.kind == Undetermined:
+            if expression.identType.isUndetermined():
                 expression.identType = expression.identType.fixedUndeterminedType()
 
         of Ident:
@@ -441,7 +465,7 @@ proc analyze(expression: Expression, scope: Scope) =
             discard expression.inferType(scope)
 
         of Cast:
-            if expression.toType.kind == Undetermined:
+            if expression.toType.isUndetermined():
                 expression.toType = expression.toType.fixedUndeterminedType()
 
             let exp = expression.castExpr

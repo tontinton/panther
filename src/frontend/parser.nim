@@ -174,22 +174,52 @@ proc buildBinOp(parser: Parser,
     else:
         return some(tree)
 
-proc buildUndeterminedType(state: ParserState, typeToken: Token): Type =
+proc buildUndeterminedType(state: ParserState, value: string): Type =
     let startIndex = state.index
     while state.index < state.tokens.len() and state.tokens[state.index].kind == Mul:
         inc(state.index)
-    Type(kind: Undetermined, value: typeToken.value, ptrLevel: state.index - startIndex)
+    Type(kind: Undetermined, value: value, ptrLevel: state.index - startIndex)
+
+proc buildUndeterminedProcType(state: ParserState,
+                               token: Token,
+                               callExpr: Expression,
+                               retType: Type): Type =
+    var params: seq[(string, Type)] = @[]
+    for i, param in callExpr.params.expressions:
+        case param.kind:
+        of TypedIdent:
+            params.add((param.ident.value, param.identType))
+        else:
+            raise newParseError(token, &"did not expect {param.kind} as a parameter inside a {Proc} type")
+
+    Type(kind: UndeterminedProcedure, params: params, ret: retType, ptrLevel: 0)
 
 proc buildVoidType(): Type =
     Type(kind: Void, ptrLevel: 0)
 
-proc nextType(state: ParserState, token: Token): Type =
+proc nextType(parser: Parser, state: ParserState, token: Token): Type =
     if state.index < state.tokens.len():
         case state.tokens[state.index].kind:
         of Symbol:
-            let typeToken = state.tokens[state.index]
+            let token = state.tokens[state.index]
             inc(state.index)
-            return buildUndeterminedType(state, typeToken)
+            return buildUndeterminedType(state, token.value)
+        of Proc:
+            inc(state.index)  # Skip current token
+
+            # Using a fake ident to generate a function call expression
+            let fakeIdent = Expression(kind: Ident, value: "", token: token)
+            let expression = parser.nextExpression(state, fakeIdent)
+            if expression.isNone():
+                raise newParseError(token, &"got an empty expression after {Proc}")
+            let head = expression.get()
+            if head.kind != FunctionCall:
+                raise newParseError(token,
+                                    &"expected a {FunctionCall} expression after proc, not {head.kind}")
+
+            let returnType = parser.nextType(state, token)
+
+            return buildUndeterminedProcType(state, token, head, returnType)
         else:
             return buildVoidType()
     else:
@@ -264,7 +294,7 @@ proc nextExpression(parser: Parser,
         if prev.kind != Ident:
             raise newParseError(token, fmt"expected `{token.kind}` only after `{prev.kind}`")
         else:
-            let identType = nextType(state, token)
+            let identType = parser.nextType(state, token)
             if identType.kind == Void:
                 raise newParseError(token, fmt"expected a valid type after `{token.kind}`, not {identType.kind}")
 
@@ -293,30 +323,35 @@ proc nextExpression(parser: Parser,
         return expression
 
     of Proc:
-        if state.index < state.tokens.len() and state.tokens[state.index].kind == Symbol:
-            let expression = parser.nextExpression(state)
-            if expression.isNone():
-                raise newParseError(token, &"got an empty expression after {Proc}")
-            let head = expression.get()
-            if head.kind != FunctionCall:
-                raise newParseError(token,
-                                    &"expected a {FunctionCall} expression after proc's name, not {head.kind}")
+        if state.index < state.tokens.len():
+            let nextToken = state.tokens[state.index]
+            case nextToken.kind:
+            of Symbol:
+                let expression = parser.nextExpression(state)
+                if expression.isNone():
+                    raise newParseError(token, &"got an empty expression after {Proc}")
+                let head = expression.get()
+                if head.kind != FunctionCall:
+                    raise newParseError(token,
+                                        &"expected a {FunctionCall} expression after proc's name, not {head.kind}")
 
-            let returnType = nextType(state, token)
+                let returnType = parser.nextType(state, token)
 
-            withSome parser.nextExpression(state):
-                some procBlock:
-                    return some(Expression(kind: FunctionDeclaration,
-                                           declName: head.name,
-                                           declParams: head.params,
-                                           returnType: returnType,
-                                           implementation: procBlock,
-                                           extern: false,
-                                           token: token))
-                none:
-                    raise newParseError(token, fmt"expected an implementation for {head.name}")
+                withSome parser.nextExpression(state):
+                    some procBlock:
+                        return some(Expression(kind: FunctionDeclaration,
+                                               declName: head.name,
+                                               declParams: head.params,
+                                               returnType: returnType,
+                                               implementation: procBlock,
+                                               extern: false,
+                                               token: token))
+                    none:
+                        raise newParseError(token, fmt"expected an implementation for {head.name}")
+            else:
+                raise newParseError(token, &"did not expect `{nextToken.kind}` after `{token.kind}`")
         else:
-            raise newParseError(token, "expected a symbol after `proc`")
+            raise newParseError(token, &"expected something after `{token.kind}`")
 
     of Ret:
         let maybeExpression = parser.nextExpression(state)
@@ -463,7 +498,7 @@ proc nextExpression(parser: Parser,
         if prev.isEmpty():
             raise newParseError(token, fmt"`{token.kind}` cannot be at the beginning of an expression")
 
-        let toType = nextType(state, token)
+        let toType = parser.nextType(state, token)
         return parser.nextExpression(state, Expression(kind: Cast,
                                                        castExpr: prev,
                                                        toType: toType,
