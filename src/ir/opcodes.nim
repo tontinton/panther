@@ -44,11 +44,9 @@ type
             value*: int
         of Function:
             name*: string
-            arguments*: seq[Type]
-            ret*: Type
+            index*: int
+            funcType*: Type
             code*: ByteCode
-        of Call:
-            call*: string
         of Compare:
             compare*: CompareKind
         of Cast:
@@ -79,20 +77,10 @@ func pretty(opcode: Opcode, tabs: uint = 0, code: ByteCode = nil): string =
             result &= &" ({code.consts[opcode.value].pretty(showType=false)})"
 
     of Function:
-        result = &"{opcode.kind} {opcode.name}("
-        for i, arg in opcode.arguments:
-            if i == 0:
-                result &= $arg
-            else:
-                result &= &", {arg}"
-
-        result &= &") -> {opcode.ret}"
+        result = &"{opcode.kind} <{opcode.name}{opcode.funcType}> ({opcode.index})"
         let implementation = opcode.code.pretty(tabs + 1)
         if implementation != "":
             result &= &":\n{implementation}"
-
-    of Call:
-        result = &"{opcode.kind} {opcode.call}"
 
     of Compare:
         let c = case opcode.compare:

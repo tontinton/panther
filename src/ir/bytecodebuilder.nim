@@ -16,6 +16,11 @@ type
         # Map between name of a variable to it's index inside variables
         nameToVariable: TableRef[string, int]
 
+        # List of all defined functions,
+        # used for knowing if to load the function as a pointer,
+        # when handling a FunctionCall expression.
+        definedFunctions: seq[string]
+
         # To be able to insert jumps instead of and / or opcodes,
         # we need to update the jump values of all jumps inside a
         # bin op tree after it's done feeding opcodes.
@@ -23,13 +28,17 @@ type
 
 proc newByteCodeBuilder*(builder: ByteCodeBuilder = nil): ByteCodeBuilder =
     let variableTable = newTable[string, int]()
+    var definedFunctions : seq[string] = @[]
 
     if builder != nil:
         for key in builder.nameToVariable.keys():
             variableTable[key] = builder.nameToVariable[key]
+        for val in builder.definedFunctions:
+            definedFunctions.add(val)
 
     ByteCodeBuilder(code: newByteCode(),
                     nameToVariable: variableTable,
+                    definedFunctions: definedFunctions,
                     inBinOpTree: false)
 
 proc loadConst(builder: ByteCodeBuilder, variable: Variable): Opcode =
@@ -60,25 +69,38 @@ proc feed(builder: ByteCodeBuilder, expression: Expression) =
         let name = expression.declName
         let ret = expression.returnType
 
+        let index = builder.storeVar(name).value
+        builder.definedFunctions.add(name)
+
         let funcBuilder = newByteCodeBuilder(builder=builder)
 
-        var arguments = newSeq[Type]()
+        var params = newSeq[(string, Type)]()
         for exp in expression.declParams.expressions:
-            arguments.add(exp.identType)
+            params.add((exp.ident.value, exp.identType))
             discard funcBuilder.storeVar(exp.ident.value)
 
         funcBuilder.feed(expression.implementation)
 
-        add(Opcode(kind: Function, name: name, arguments: arguments, ret: ret, code: funcBuilder.code))
+        add(Opcode(kind: Function,
+                   name: name,
+                   index: index,
+                   funcType: Type(kind: Procedure, params: params, ret: ret),
+                   code: funcBuilder.code))
 
     of FunctionCall:
         for param in expression.params.expressions:
             builder.feed(param)
-        add(Opcode(kind: Call, call: expression.name))
+        add(builder.loadVar(expression.name))
+
+        if not (expression.name in builder.definedFunctions):
+            # The call is to a function pointer and not a declaration, load the pointer
+            add(Opcode(kind: Load))
+
+        add(Opcode(kind: Call))
 
     of ast.Return:
-        builder.feed(expression.retExpr)
-        add(Opcode(kind: opcodes.Return))
+            builder.feed(expression.retExpr)
+            add(Opcode(kind: opcodes.Return))
 
     of Declaration:
         builder.feed(expression.declExpr)
