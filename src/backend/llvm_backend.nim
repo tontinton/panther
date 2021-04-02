@@ -27,7 +27,6 @@ type
         builder: BuilderRef
         types: TableRef[types.TypeKind, llvm.TypeRef]
         variables: TableRef[int, LLVMVar]
-        functionsRetTypes: TableRef[string, types.Type]
         stack: Stack[LLVMVar]
         level: int
 
@@ -66,7 +65,6 @@ proc newLLVMBackend*(): LLVMBackend =
                 builder: builder,
                 types: types,
                 variables: newTable[int, LLVMVar](),
-                functionsRetTypes: newTable[string, Type](),
                 stack: Stack[LLVMVar](),
                 level: GLOBAL_LEVEL,
                 jumps: newTable[int, seq[LLVMJump]]())
@@ -127,11 +125,24 @@ proc compile*(backend: LLVMBackend, outputPath: string, target: string, outputAs
         raise newLLVMError(fmt"llvm compilation error: {err}")
 
 proc getLLVMType(backend: LLVMBackend, typ: Type): llvm.TypeRef =
-    result = backend.types[typ.kind]
-    for i in 0..<typ.ptrLevel:
-        result = llvm.pointerType(result)
+    case typ.kind:
+    of Procedure:
+        let retType = backend.getLLVMType(typ.ret)
+        var paramTypes: seq[llvm.TypeRef] = @[]
 
-proc createVariable(backend: LLVMBackend, index: int, typ: Type): LLVMVar =
+        for (_, t) in typ.params:
+            paramTypes.add(backend.getLLVMType(t))
+
+        result = llvm.pointerType(llvm.functionType(retType, paramTypes))
+    else:
+        result = backend.types[typ.kind]
+        for i in 0..<typ.ptrLevel:
+            result = llvm.pointerType(result)
+
+proc isGlobalScope(backend: LLVMBackend): bool =
+    backend.level == GLOBAL_LEVEL
+
+proc createLocalVariable(backend: LLVMBackend, index: int, typ: Type): LLVMVar =
     let pre = backend.builder.getInsertBlock()
     let llvmFunc = pre.getBasicBlockParent()
     let entryBlock = llvmFunc.getEntryBasicBlock()
@@ -147,6 +158,10 @@ proc createGlobal(backend: LLVMBackend, index: int, typ: Type): LLVMVar =
     llvm.setGlobalConstant(global, llvm.False)
     newLLVMVar(global, typ)
 
+proc createVariable(backend: LLVMBackend, index: int, typ: Type): LLVMVar =
+    let createVar = if backend.isGlobalScope(): createGlobal else: createLocalVariable
+    createVar(backend, index, typ)
+
 proc isReal(val: LLVMVar): bool =
     case val.typ.kind:
     of Float32:
@@ -160,9 +175,6 @@ proc isSigned(val: LLVMVar): bool =
         true
     else:
         false
-
-proc isGlobalScope(backend: LLVMBackend): bool =
-    backend.level == GLOBAL_LEVEL
 
 proc load(backend: LLVMBackend, variable: LLVMVar): LLVMVar =
     let v = if backend.isGlobalScope():
@@ -248,8 +260,7 @@ proc build(backend: LLVMBackend, code: ByteCode) =
 
             var variable = backend.variables.getOrDefault(opcode.value, nil)
             if variable == nil:
-                let createVar = if backend.isGlobalScope(): createGlobal else: createVariable
-                backend.variables[opcode.value] = createVar(backend, opcode.value, value.typ)
+                backend.variables[opcode.value] = backend.createVariable(opcode.value, value.typ)
                 variable = backend.variables[opcode.value]
 
             backend.store(variable, value)
@@ -360,22 +371,23 @@ proc build(backend: LLVMBackend, code: ByteCode) =
             var llvmFunc = llvm.getNamedFunction(backend.module, name)
             if llvmFunc == nil:
                 # Create function in llvm
-                let retType = backend.getLLVMType(opcode.ret)
+                let ourRetType = opcode.funcType.ret
+                let llvmRetType = backend.getLLVMType(ourRetType)
                 var paramTypes: seq[llvm.TypeRef] = @[]
 
-                for t in opcode.arguments:
+                for (_, t) in opcode.functype.params:
                     paramTypes.add(backend.getLLVMType(t))
 
-                let funcType = llvm.functionType(retType, paramTypes)
+                let funcType = llvm.functionType(llvmRetType, paramTypes)
                 llvmFunc = llvm.addFunction(backend.module, name, funcType)
 
                 llvm.setFunctionCallConv(llvmFunc, llvm.CCallConv.cuint)
 
-                for i, t in opcode.arguments:
+                for i, (_, t) in opcode.funcType.params:
                     let index = i + backend.variables.len()
                     llvmFunc.getParam(cast[cuint](i)).setValueName(intToStr(index))
-                
-                backend.functionsRetTypes[name] = opcode.ret
+
+                backend.variables[opcode.index] = newLLVMVar(llvmFunc, opcode.funcType)
 
             if opcode.code.opcodes.len() > 0:
                 let entryBlock = llvm.appendBasicBlockInContext(backend.context, llvmFunc, "entry")
@@ -387,9 +399,9 @@ proc build(backend: LLVMBackend, code: ByteCode) =
                     oldVariables[key] = backend.variables[key]
 
                 # Now that we have created the entry block allocate the function arguments
-                for i, t in opcode.arguments:
+                for i, (_, t) in opcode.functype.params:
                     let index = i + backend.variables.len()
-                    let variable = backend.createVariable(index, t)
+                    let variable = backend.createLocalVariable(index, t)
                     discard llvm.buildStore(backend.builder, llvmFunc.getParam(cast[cuint](i)), variable.llvmValue)
                     backend.variables[index] = variable
 
@@ -402,24 +414,21 @@ proc build(backend: LLVMBackend, code: ByteCode) =
                     backend.variables[key] = oldVariables[key]
 
         of opcodes.Call:
-            let name = opcode.call
-            let llvmFunc = llvm.getNamedFunction(backend.module, name)
-            if llvmFunc == nil:
-                raise newBackendError(fmt"no function named: {name}")
+            let variable = pop()
+            let llvmFunc = variable.llvmValue
 
             var args: seq[llvm.ValueRef] = @[]
+            let argsLen = variable.typ.params.len()
 
-            for _ in 0..<llvmFunc.countParams():
+            for _ in 0..<argsLen:
                 args.add(pop().llvmValue)
 
-            if llvmFunc.countParams() > 1:
+            if argsLen > 1:
                 args.reverse()
 
-            push(newLLVMVar(llvm.buildCall(backend.builder, llvmFunc, args, ""),
-                            backend.functionsRetTypes[name]))
+            push(newLLVMVar(llvm.buildCall(backend.builder, llvmFunc, args, ""), variable.typ.ret))
 
         of Return:
-            # TODO: buildRetVoid when needed
             let val = pop()
             if llvm.getBasicBlockTerminator(backend.builder.getInsertBlock()) == nil:
                 discard llvm.buildRet(backend.builder, val.llvmValue)
