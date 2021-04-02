@@ -99,8 +99,11 @@ proc feed(builder: ByteCodeBuilder, expression: Expression) =
         add(Opcode(kind: Call))
 
     of ast.Return:
+        if expression.retExpr.kind != Empty:
             builder.feed(expression.retExpr)
             add(Opcode(kind: opcodes.Return))
+        else:
+            add(Opcode(kind: opcodes.ReturnNothing))
 
     of Declaration:
         builder.feed(expression.declExpr)
