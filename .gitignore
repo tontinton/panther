@@ -7,3 +7,4 @@ panther
 tests/test_*
 !tests/test*.nim
 output.o
+.vscode
