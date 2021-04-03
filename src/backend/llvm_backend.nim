@@ -51,15 +51,33 @@ proc newLLVMBackend*(): LLVMBackend =
 
     let types = newTable[types.TypeKind, llvm.TypeRef]()
     let voidType = llvm.voidTypeInContext(context)
-    let int32Type = llvm.intTypeInContext(context, 32)
     let int8Type = llvm.intTypeInContext(context, 8)
+    let int16Type = llvm.intTypeInContext(context, 16)
+    let int32Type = llvm.intTypeInContext(context, 32)
+    let int64Type = llvm.intTypeInContext(context, 64)
+
+    let halfType = llvm.halfTypeInContext(context)
     let floatType = llvm.floatTypeInContext(context)
+    let doubleType = llvm.doubleTypeInContext(context)
+
     types[Void] = voidType
-    types[Unsigned32] = int32Type
-    types[Signed32] = int32Type
-    types[Float32] = floatType
+
     types[Boolean] = int8Type
     types[String] = llvm.pointerType(int8Type)
+
+    types[Signed8] = int8Type
+    types[Signed16] = int16Type
+    types[Signed32] = int32Type
+    types[Signed64] = int64Type
+
+    types[Unsigned8] = int8Type
+    types[Unsigned16] = int16Type
+    types[Unsigned32] = int32Type
+    types[Unsigned64] = int64Type
+
+    types[Float16] = halfType
+    types[Float32] = floatType
+    types[Float64] = doubleType
 
     LLVMBackend(context: context,
                 module: module,
@@ -165,18 +183,10 @@ proc createVariable(backend: LLVMBackend, index: int, typ: Type): LLVMVar =
     createVar(backend, index, typ)
 
 proc isReal(val: LLVMVar): bool =
-    case val.typ.kind:
-    of Float32:
-        true
-    else:
-        false
+    return val.typ.isRealInteger()
 
 proc isSigned(val: LLVMVar): bool =
-    case val.typ.kind:
-    of Signed32:
-        true
-    else:
-        false
+    return val.typ.isSignedInteger()
 
 proc load(backend: LLVMBackend, variable: LLVMVar): LLVMVar =
     let v = if backend.isGlobalScope():
@@ -282,24 +292,25 @@ proc build(backend: LLVMBackend, code: ByteCode) =
             let variable = code.consts[opcode.value]
             let variableType = code.consts[opcode.value].typ
             let llvmType = backend.getLLVMType(variableType) 
-            let llvmValue = case variableType.kind:
-            of Signed32:
+            let llvmValue = if variableType.isSignedInteger():
                 llvm.constInt(llvmType,
                               cast[culonglong](parseInt(variable.value)),
                               llvm.True)
-            of Unsigned32:
+            elif variableType.isUnsignedInteger():
                 llvm.constInt(llvmType,
                               cast[culonglong](parseInt(variable.value)),
                               llvm.False)
-            of String:
-                llvm.constString(variable.value, variable.value.len().cuint, llvm.False)
-            of Float32:
+            elif variableType.isRealInteger():
                 llvm.constRealOfString(llvmType, variable.value)
-            of Boolean:
-                let val = if variable.value == BOOLEAN_TRUE: 1 else: 0
-                llvm.constInt(llvmType, cast[culonglong](val), llvm.False)
             else:
-                raise newBackendError(fmt"unsupported const: {variableType.kind}")
+                case variableType.kind:
+                of String:
+                    llvm.constString(variable.value, variable.value.len().cuint, llvm.False)
+                of Boolean:
+                    let val = if variable.value == BOOLEAN_TRUE: 1 else: 0
+                    llvm.constInt(llvmType, cast[culonglong](val), llvm.False)
+                else:
+                    raise newBackendError(fmt"unsupported const: {variableType.kind}")
 
             push(newLLVMVar(llvmValue, variableType))
 
