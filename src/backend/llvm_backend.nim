@@ -188,6 +188,9 @@ proc isReal(val: LLVMVar): bool =
 proc isSigned(val: LLVMVar): bool =
     return val.typ.isSignedInteger()
 
+proc isUnsigned(val: LLVMVar): bool =
+    return val.typ.isUnsignedInteger()
+
 proc load(backend: LLVMBackend, variable: LLVMVar): LLVMVar =
     let v = if backend.isGlobalScope():
         variable.llvmValue.getInitializer()
@@ -321,12 +324,14 @@ proc build(backend: LLVMBackend, code: ByteCode) =
             proc buildCmp(signedPredicate: llvm.IntPredicate,
                           unsignedPredicate: llvm.IntPredicate,
                           realPredicate: llvm.RealPredicate): llvm.ValueRef =
-                if left.isReal():
+                if left.isUnsigned():
+                    return llvm.buildICmp(backend.builder, unsignedPredicate, left.llvmValue, right.llvmValue, "")
+                elif left.isReal():
                     return llvm.buildFCmp(backend.builder, realPredicate, left.llvmValue, right.llvmValue, "")
                 elif left.isSigned():
                     return llvm.buildICmp(backend.builder, signedPredicate, left.llvmValue, right.llvmValue, "")
                 else:
-                    return llvm.buildICmp(backend.builder, unsignedPredicate, left.llvmValue, right.llvmValue, "")
+                    raise newBackendError(fmt"unsupported compare: {left.typ.kind}")
 
             let condition = case opcode.compare:
             of Equal:
