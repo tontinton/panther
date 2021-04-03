@@ -31,6 +31,9 @@ type
         stack: Stack[LLVMVar]
         level: int
 
+        # This GEP value is so commonly used, let's create a global one once
+        gep0: llvm.ValueRef
+
         # For each jump opcode, we create a basic block and put it inside this table.
         # Once, we reach an opcode index that resides inside this table,
         # we go back to the basic block and append a jump instruction.
@@ -87,6 +90,7 @@ proc newLLVMBackend*(): LLVMBackend =
                 variables: newTable[int, LLVMVar](),
                 stack: Stack[LLVMVar](),
                 level: GLOBAL_LEVEL,
+                gep0: llvm.constInt(int32Type, 0.culonglong, llvm.False),
                 jumps: newTable[int, seq[LLVMJump]]())
 
 proc optimize(backend: LLVMBackend) =
@@ -320,10 +324,7 @@ proc build(backend: LLVMBackend, code: ByteCode) =
                     let llvmString = llvm.constStringInContext(backend.context, variable.value)
                     let globalString = backend.createGlobal(".str", llvmString.typeOfX(), constant=true, private=true)
                     globalString.setInitializer(llvmString)
-                    let gep0 = llvm.constInt(backend.types[Signed32],
-                                             0.culonglong,
-                                             llvm.False)
-                    llvm.buildGEP(backend.builder, globalString, [gep0, gep0])
+                    llvm.buildGEP(backend.builder, globalString, [backend.gep0, backend.gep0])
                 of Boolean:
                     let val = if variable.value == BOOLEAN_TRUE: 1 else: 0
                     llvm.constInt(llvmType, cast[culonglong](val), llvm.False)
