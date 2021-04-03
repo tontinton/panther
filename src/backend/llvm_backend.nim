@@ -161,26 +161,35 @@ proc getLLVMType(backend: LLVMBackend, typ: Type): llvm.TypeRef =
 proc isGlobalScope(backend: LLVMBackend): bool =
     backend.level == GLOBAL_LEVEL
 
-proc createLocalVariable(backend: LLVMBackend, index: int, typ: Type): LLVMVar =
+proc createLocalVariable(backend: LLVMBackend, name: string, typ: Type): LLVMVar =
     let pre = backend.builder.getInsertBlock()
     let llvmFunc = pre.getBasicBlockParent()
     let entryBlock = llvmFunc.getEntryBasicBlock()
 
     llvm.positionBuilderAtEnd(backend.builder, entryBlock)
-    let variable = llvm.buildAlloca(backend.builder, backend.getLLVMType(typ), intToStr(index))
+    let variable = llvm.buildAlloca(backend.builder, backend.getLLVMType(typ), name)
     llvm.positionBuilderAtEnd(backend.builder, pre)
 
     newLLVMVar(variable, typ)
 
-proc createGlobal(backend: LLVMBackend, index: int, typ: Type): LLVMVar =
-    let global = llvm.addGlobal(backend.module, backend.getLLVMType(typ), intToStr(index))
-    llvm.setGlobalConstant(global, llvm.False)
-    llvm.setSection(global, OUTPUT_SECTION)
+proc createGlobal(backend: LLVMBackend, name: string, typ: llvm.TypeRef,
+                  constant: bool = false, private: bool = false): llvm.ValueRef =
+    result = llvm.addGlobal(backend.module, typ, name)
+    llvm.setGlobalConstant(result, if constant: llvm.True else: llvm.False)
+    if private:
+        result.setLinkage(llvm.PrivateLinkage)
+    llvm.setSection(result, OUTPUT_SECTION)
+
+proc createGlobal(backend: LLVMBackend, name: string, typ: Type,
+                  constant: bool = false, private: bool = false): LLVMVar =
+    let global = backend.createGlobal(name, backend.getLLVMType(typ), constant=constant, private=private)
     newLLVMVar(global, typ)
 
 proc createVariable(backend: LLVMBackend, index: int, typ: Type): LLVMVar =
-    let createVar = if backend.isGlobalScope(): createGlobal else: createLocalVariable
-    createVar(backend, index, typ)
+    if backend.isGlobalScope():
+        backend.createGlobal(intToStr(index), typ)
+    else:
+        backend.createLocalVariable(intToStr(index), typ)
 
 proc isReal(val: LLVMVar): bool =
     return val.typ.isRealInteger()
@@ -308,7 +317,13 @@ proc build(backend: LLVMBackend, code: ByteCode) =
             else:
                 case variableType.kind:
                 of String:
-                    llvm.constString(variable.value, variable.value.len().cuint, llvm.False)
+                    let llvmString = llvm.constStringInContext(backend.context, variable.value)
+                    let globalString = backend.createGlobal(".str", llvmString.typeOfX(), constant=true, private=true)
+                    globalString.setInitializer(llvmString)
+                    let gep0 = llvm.constInt(backend.types[Signed32],
+                                             0.culonglong,
+                                             llvm.False)
+                    llvm.buildGEP(backend.builder, globalString, [gep0, gep0])
                 of Boolean:
                     let val = if variable.value == BOOLEAN_TRUE: 1 else: 0
                     llvm.constInt(llvmType, cast[culonglong](val), llvm.False)
@@ -420,7 +435,7 @@ proc build(backend: LLVMBackend, code: ByteCode) =
                 # Now that we have created the entry block allocate the function arguments
                 for i, (_, t) in opcode.functype.params:
                     let index = i + backend.variables.len()
-                    let variable = backend.createLocalVariable(index, t)
+                    let variable = backend.createLocalVariable(intToStr(index), t)
                     discard llvm.buildStore(backend.builder, llvmFunc.getParam(cast[cuint](i)), variable.llvmValue)
                     backend.variables[index] = variable
 
