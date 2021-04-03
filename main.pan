@@ -1,14 +1,18 @@
-let ITERATIONS = 25
-let ADDRESS = 0x10000
+let TEST_NUMBER = 30
 
-proc fib(a: s32) -> s32
-
-proc main() -> s32:
-    let test = ADDRESS as s32*
-    *test = ITERATIONS
-    return fib(*test)
+proc _start()
 
 proc fib(a: s32) -> s32:
-    if a <= 2:
-        return 1
-    return fib(a - 1) + fib(a - 2)
+    if a < 2:
+        return a
+    else:
+        return fib(a - 1) + fib(a - 2)
+
+let printf = 0x402ba0 as proc(fmt: s32*, num: s32) 
+
+proc print_s32(a: s32):
+    let o = 0x000a6425
+    printf(&o, a)
+
+proc _start():
+    print_s32(fib(TEST_NUMBER))
