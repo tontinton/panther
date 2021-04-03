@@ -68,6 +68,9 @@ const BUILTIN_TYPES* = {
 }
 
 proc isSignedInteger*(t: Type): bool =
+    if t.ptrLevel > 0:
+        return false
+
     case t.kind:
     of Signed8, Signed16, Signed32, Signed64:
         true
@@ -75,6 +78,9 @@ proc isSignedInteger*(t: Type): bool =
         false
 
 proc isUnsignedInteger*(t: Type): bool =
+    if t.ptrLevel > 0:
+        return true
+
     case t.kind:
     of Unsigned8, Unsigned16, Unsigned32, Unsigned64:
         true
@@ -82,6 +88,9 @@ proc isUnsignedInteger*(t: Type): bool =
         false
 
 proc isRealInteger*(t: Type): bool =
+    if t.ptrLevel > 0:
+        return false
+
     case t.kind:
     of Float16, Float32, Float64:
         true
