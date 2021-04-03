@@ -91,8 +91,7 @@ proc newLLVMBackend*(): LLVMBackend =
 proc optimize(backend: LLVMBackend) =
     # TODO: align-all-blocks=1 / align-all-functions=1
     let pmb = llvm.passManagerBuilderCreate()
-    # TODO: figure out why setting opt level 2, optimizes recusrion to infinite loops
-    pmb.passManagerBuilderSetOptLevel(1)
+    pmb.passManagerBuilderSetOptLevel(2)
     pmb.passManagerBuilderSetSizeLevel(2)
 
     let fpm = backend.module.createFunctionPassManagerForModule()
