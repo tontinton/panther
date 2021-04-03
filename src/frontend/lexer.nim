@@ -46,6 +46,24 @@ proc readString(lexer: Lexer): string =
     result = ""
     var c = lexer.readChar()
     while c != '\0' and c != '"':
+        if c == '\\':
+            let next = lexer.readChar()
+            case next:
+            of '\\':
+                discard
+            of 'r':
+                c = '\r'
+            of 'n':
+                c = '\n'
+            of 't':
+                c = '\t'
+            of 'v':
+                c = '\v'
+            of 'a':
+                c = '\a'
+            else:
+                raise newException(LibraryError, &"\\{next} is not a valid character")
+
         result &= c
         c = lexer.readChar()
 
