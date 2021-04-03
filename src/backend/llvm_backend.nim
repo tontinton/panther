@@ -51,6 +51,7 @@ proc newLLVMBackend*(): LLVMBackend =
 
     let types = newTable[types.TypeKind, llvm.TypeRef]()
     let voidType = llvm.voidTypeInContext(context)
+    let int1Type = llvm.intTypeInContext(context, 1)
     let int8Type = llvm.intTypeInContext(context, 8)
     let int16Type = llvm.intTypeInContext(context, 16)
     let int32Type = llvm.intTypeInContext(context, 32)
@@ -62,7 +63,7 @@ proc newLLVMBackend*(): LLVMBackend =
 
     types[Void] = voidType
 
-    types[Boolean] = int8Type
+    types[Boolean] = int1Type
     types[String] = llvm.pointerType(int8Type)
 
     types[Signed8] = int8Type
