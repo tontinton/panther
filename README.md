@@ -47,11 +47,11 @@ proc fib(a: s32) -> s32:
 
 # The printf symbol predetermined by an address.
 # In the future I would like to add a feature of searching for a symbol at runtime.
-let printf = 0x402ba0 as proc(fmt: s32*, num: s32) 
+let printf = 0x402ba0 as proc(fmt: s8*, num: s32) 
 
 proc print_s32(a: s32):
     let o = 0x000a6425  # "%d\n" in little endian
-    printf(&o, a)
+    printf(&o as s8*, a)
 
 proc _start():
     print_s32(fib(TEST_NUMBER))
