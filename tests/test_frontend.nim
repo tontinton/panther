@@ -81,9 +81,6 @@ const EXPECTED_OUTPUT = """
         ]
   ),
   (
-    empty
-  ),
-  (
     function:
       name: isFoo
       params:
@@ -128,9 +125,6 @@ const EXPECTED_OUTPUT = """
               literal: false
           ),
         ]
-  ),
-  (
-    empty
   ),
   (
     function:
@@ -277,5 +271,7 @@ suite "frontend":
             output.isSome()
             EXPECTED_OUTPUT == $output.get()
 
+    test "invalidity":
+        check:
             "x -> 2".parseText().isNone()  # invalid syntax
-            "let x = \"hello\"\nlet y = x + 2\n".parseText().isNone()  # types differ
+            "let x = \"hello\";let y = x + 2;".parseText().isNone()  # types differ

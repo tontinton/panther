@@ -6,7 +6,7 @@ import ir/[bytecodebuilder, opcodes, variables]
 
 suite "bytecode builder":
     test "sanity":
-        let outputAst = "let a = 5 + 9 * 2\n".parseText()
+        let outputAst = "let a = 5 + 9 * 2;".parseText()
         assert outputAst.isSome()
         let b = outputAst.get().byteCode()
         assert b.consts.len() == 3
