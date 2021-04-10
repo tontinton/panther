@@ -217,6 +217,9 @@ proc nextType(parser: Parser, state: ParserState, token: Token): Type =
                 raise newParseError(token,
                                     &"expected a {FunctionCall} expression after proc, not {head.kind}")
 
+            if state.tokens[state.index - 1].kind == parser.separator:
+                dec(state.index)
+
             let returnType = parser.nextType(state, token)
 
             return buildUndeterminedProcType(state, token, head, returnType)
