@@ -215,6 +215,10 @@ proc analyze(expression: Expression, scope: Scope) =
         of Block:
             let funcCount = scope.functions.len()
             var returnFound = false
+
+            # Filter out all empty expressions from the block
+            expression.expressions = filter(expression.expressions, proc(e: Expression): bool = e.kind != Empty)
+
             for exp in expression.expressions:
                 withErrorCatching:
                     if returnFound:
