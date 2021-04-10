@@ -11,7 +11,6 @@ import common/customerrors
 
 type
     Parser* = ref object
-        indentation: int
         separator: TokenKind
         stopper: TokenKind
         error: ParseError
@@ -40,11 +39,9 @@ func newParserState(tokens: seq[Token]): ParserState =
                 emptyExpression: Expression(kind: Empty),
                 separator: none[TokenKind]())
 
-func newParser*(indentation: int = 0,
-                separator: TokenKind = NewLine,
-                stopper: TokenKind = Indentation): Parser =
-    Parser(indentation: indentation,
-           separator: separator,
+func newParser*(separator: TokenKind = SemiColon,
+                stopper: TokenKind = CloseCurly): Parser =
+    Parser(separator: separator,
            stopper: stopper,
            error: nil,
            arithmetic: false,
@@ -66,7 +63,7 @@ proc nextExpressionOrError(parser: Parser, state: ParserState): Option[Expressio
     except ParseError as e:
         while state.index < state.tokens.len():
             let token = state.tokens[state.index]
-            if token.kind == parser.separator or (token.kind == parser.stopper and parser.stopper != Indentation):
+            if token.kind == parser.separator or token.kind == parser.stopper:
                 break
             inc(state.index)
         raise e
@@ -111,7 +108,7 @@ proc parseBlock*(parser: Parser, tokens: seq[Token]): Expression =
         result.expressions.add(expression)
 
 proc nextBlock(parser: Parser, state: ParserState): Expression =
-    let blockParser = newParser(indentation = parser.indentation + 4)
+    let blockParser = newParser()
     result = Expression(kind: Block, expressions: @[])
     try:
         for expression in blockParser.parse(state):
@@ -263,21 +260,19 @@ proc nextExpression(parser: Parser,
     if token.kind == parser.separator:
         return some(prev)
 
-    case token.kind:
-    of Indentation:
-        if parser.stopper != Indentation or token.indentation == parser.indentation:
-            return parser.nextExpression(state, prev)
-        elif token.indentation < parser.indentation:
-            dec(state.index)
+    if token.kind == parser.stopper:
+        if prev.isEmpty():
             return none[Expression]()
         else:
-            raise newParseError(token, "indentation of line cannot be larger without starting a new block")
+            dec(state.index)
+            return some(prev)
 
-    of Pound:
+    case token.kind:
+    of DoubleSlash:
         inc(state.index)
         while state.index < state.tokens.len():
             case state.tokens[state.index].kind:
-            of NewLine, ColonNewLine:
+            of NewLine:
                 inc(state.index)
                 return some(prev)
             else:
@@ -378,16 +373,6 @@ proc nextExpression(parser: Parser,
             else:
                 return parser.nextExpression(state, next)
 
-    of CloseBracket:
-        if parser.stopper == CloseBracket:
-            if prev.isEmpty():
-                return none[Expression]()
-            else:
-                dec(state.index)
-                return some(prev)
-        else:
-            raise newParseError(token, "unexpected `)`")
-
     of Symbol:
         return parser.nextExpression(state, Expression(kind: Ident, value: token.value, token: token))
 
@@ -421,11 +406,11 @@ proc nextExpression(parser: Parser,
                                                        literal: BOOLEAN_FALSE,
                                                        token: token))
 
-    of ColonNewLine:
+    of OpenCurly:
         if prev.isEmpty():
             let expression = parser.nextBlock(state)
             if expression.expressions.len() < 1:
-                raise newParseError(token, "no block after `:`")
+                raise newParseError(token, &"no block after `{token.kind}`")
             return some(expression)
         else:
             dec(state.index)
@@ -433,10 +418,9 @@ proc nextExpression(parser: Parser,
 
     of If, ElseIf:
         if token.kind == ElseIf and prev.kind != IfThen:
-            raise newParseError(token, "`elif` can only come after `if`")
+            raise newParseError(token, &"`elif` can only come after `if`")
 
-
-        var expression = parser.nextExpressionUntil(state, ColonNewLine)
+        var expression = parser.nextExpressionUntil(state, OpenCurly)
         if expression.isNone():
             raise newParseError(token, fmt"no expression after `{token.kind}`")
 
@@ -449,8 +433,8 @@ proc nextExpression(parser: Parser,
         let then = expression.get()
         let ifExpr = Expression(kind: IfThen, condition: condition, then: then, token: token)
 
-        if state.index + 1 < state.tokens.len():
-            let nextToken = state.tokens[state.index + 1]
+        if state.index < state.tokens.len():
+            let nextToken = state.tokens[state.index]
             case nextToken.kind:
             of ElseIf:
                 expression = parser.nextExpression(state, ifExpr)
@@ -528,6 +512,9 @@ proc nextExpression(parser: Parser,
             return parser.buildUnary(state, token)
         else:
             return parser.buildBinOp(state, token, prev)
+
+    of NewLine:
+        return parser.nextExpression(state, prev=prev, breakExpression=breakExpression)
 
     of Unknown:
         raise newParseError(token, fmt"unexpected token: `{token.value}`")

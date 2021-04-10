@@ -104,8 +104,6 @@ proc readSymbol(lexer: Lexer): string =
             break
 
 iterator items*(lexer: Lexer): Token =
-    var indentationLength = 0
-    var inIndentation = true
     var line = 1
     var lineStart = 0
 
@@ -134,149 +132,121 @@ iterator items*(lexer: Lexer): Token =
         let start = lexer.position() - lineStart - value.len()
         Token(kind: Str, value: value, errorInfo: newErrorInfo(line, lineStart, start, value.len() + 2))
 
-    proc newIndentation(): Token =
-        Token(kind: Indentation,
-              indentation: indentationLength,
-              errorInfo: newErrorInfo(line, lineStart, 0, lexer.position() - lineStart))
-
     var c = lexer.readChar()
     while c != '\0':
-        if inIndentation:
-            case c:
-            of ' ':
-                indentationLength += 1
-            of '\t':
-                indentationLength += 4
-            else:
-                inIndentation = false
-                yield newIndentation()
-                continue
-        else:
-            case c:
-            of ' ', '\t', '\r':
-                discard
-            of '\n':
-                yield newToken(NewLine)
-                inIndentation = true
-                indentationLength = 0
-                inc(line)
-                lineStart = lexer.position()
-            of ',':
-                yield newToken(Comma)
-            of ':':
-                proc newColonNewLine(): Token =
-                    inIndentation = true
-                    indentationLength = 0
-                    inc(line)
-                    lineStart = lexer.position()
-                    newToken(ColonNewLine)
-
-                if lexer.peekChar() == '\n':
-                    discard lexer.readChar()
-                    yield newColonNewLine()
-                elif lexer.peekChar() == '\r':
-                    discard lexer.readChar()
-                    if lexer.peekChar() == '\n':
-                        discard lexer.readChar()
-                        yield newColonNewLine()
-                else:
-                    yield newToken(Colon)
-            of ';':
-                yield newToken(SemiColon)
-            of '(':
-                yield newToken(OpenBracket)
-            of ')':
-                yield newToken(CloseBracket)
-            of '#':
-                yield newToken(Pound)
-            of '&':
-                yield newToken(Ampersand)
-            of '-':
-                case lexer.peekChar():
-                of '>':
-                    discard lexer.readChar()
-                    yield newToken(SmallArrow, 2)
-                of '=':
-                    discard lexer.readChar()
-                    yield newToken(MinusEqual, 2)
-                of '0'..'9', '.':
-                    let value = lexer.readNumber()
-                    yield newNumber(fmt"-{value}")
-                else:
-                    yield newToken(Minus)
-            of '+':
-                if lexer.peekChar() == '=':
-                    discard lexer.readChar()
-                    yield newToken(PlusEqual, 2)
-                else:
-                    yield newToken(Plus)
-            of '/':
-                if lexer.peekChar() == '=':
-                    discard lexer.readChar()
-                    yield newToken(DivEqual, length=2)
-                else:
-                    yield newToken(Div)
-            of '*':
-                if lexer.peekChar() == '=':
-                    discard lexer.readChar()
-                    yield newToken(MulEqual, length=2)
-                else:
-                    yield newToken(Mul)
-            of '=':
-                if lexer.peekChar() == '=':
-                    discard lexer.readChar()
-                    yield newToken(DoubleEqual, length=2)
-                else:
-                    yield newToken(Equal)
+        case c:
+        of ' ', '\t', '\r':
+            discard
+        of '\n':
+            yield newToken(NewLine)
+            inc(line)
+            lineStart = lexer.position()
+        of ',':
+            yield newToken(Comma)
+        of ':':
+            yield newToken(Colon)
+        of ';':
+            yield newToken(SemiColon)
+        of '{':
+            yield newToken(OpenCurly)
+        of '}':
+            yield newToken(CloseCurly)
+        of '(':
+            yield newToken(OpenBracket)
+        of ')':
+            yield newToken(CloseBracket)
+        of '&':
+            yield newToken(Ampersand)
+        of '-':
+            case lexer.peekChar():
             of '>':
-                if lexer.peekChar() == '=':
-                    discard lexer.readChar()
-                    yield newToken(BiggerThanEqual, length=2)
-                else:
-                    yield newToken(BiggerThan)
-            of '<':
-                if lexer.peekChar() == '=':
-                    discard lexer.readChar()
-                    yield newToken(SmallerThanEqual, length=2)
-                else:
-                    yield newToken(SmallerThan)
-            of '"':
-                let value = lexer.readString()
-                yield newStr(value)
+                discard lexer.readChar()
+                yield newToken(SmallArrow, 2)
+            of '=':
+                discard lexer.readChar()
+                yield newToken(MinusEqual, 2)
             of '0'..'9', '.':
-                if c == '0' and lexer.peekChar() == 'x':
-                    # hex number
-                    discard lexer.readChar()
-                    let value = lexer.readHex()
-                    yield newNumber($fromHex[BiggestUInt](&"0x{value}"))
-                else:
-                    # regular number
-                    lexer.setPosition(lexer.position() - 1)
-                    let value = lexer.readNumber()
-                    yield newNumber(value)
-            of 'A'..'Z', 'a'..'z', '_':
-                lexer.setPosition(lexer.position() - 1)
-                let value = lexer.readSymbol()
-                let length = value.len()
-                case value:
-                of "if": yield newToken(If, length=length)
-                of "else": yield newToken(Else, length=length)
-                of "elif": yield newToken(ElseIf, length=length)
-                of "let": yield newToken(Let, length=length)
-                of "proc": yield newToken(Proc, length=length)
-                of "return": yield newToken(Ret, length=length)
-                of "import": yield newToken(Import, length=length)
-                of "pass": yield newToken(Pass, length=length)
-                of "true": yield newToken(True, length=length)
-                of "false": yield newToken(False, length=length)
-                of "and": yield newToken(And, length=length)
-                of "or": yield newToken(Or, length=length)
-                of "not": yield newToken(Not, length=length)
-                of "as": yield newToken(As, length=length)
-                of "extern": yield newToken(Extern, length=length)
-                else: yield newSymbol(value)
+                let value = lexer.readNumber()
+                yield newNumber(fmt"-{value}")
             else:
-                yield newUnknown($c)
+                yield newToken(Minus)
+        of '+':
+            if lexer.peekChar() == '=':
+                discard lexer.readChar()
+                yield newToken(PlusEqual, 2)
+            else:
+                yield newToken(Plus)
+        of '/':
+            let peek = lexer.peekChar()
+            if peek == '=':
+                discard lexer.readChar()
+                yield newToken(DivEqual, length=2)
+            elif peek == '/':
+                discard lexer.readChar()
+                yield newToken(DoubleSlash, 2)
+            else:
+                yield newToken(Div)
+        of '*':
+            if lexer.peekChar() == '=':
+                discard lexer.readChar()
+                yield newToken(MulEqual, length=2)
+            else:
+                yield newToken(Mul)
+        of '=':
+            if lexer.peekChar() == '=':
+                discard lexer.readChar()
+                yield newToken(DoubleEqual, length=2)
+            else:
+                yield newToken(Equal)
+        of '>':
+            if lexer.peekChar() == '=':
+                discard lexer.readChar()
+                yield newToken(BiggerThanEqual, length=2)
+            else:
+                yield newToken(BiggerThan)
+        of '<':
+            if lexer.peekChar() == '=':
+                discard lexer.readChar()
+                yield newToken(SmallerThanEqual, length=2)
+            else:
+                yield newToken(SmallerThan)
+        of '"':
+            let value = lexer.readString()
+            yield newStr(value)
+        of '0'..'9', '.':
+            if c == '0' and lexer.peekChar() == 'x':
+                # hex number
+                discard lexer.readChar()
+                let value = lexer.readHex()
+                yield newNumber($fromHex[BiggestUInt](&"0x{value}"))
+            else:
+                # regular number
+                lexer.setPosition(lexer.position() - 1)
+                let value = lexer.readNumber()
+                yield newNumber(value)
+        of 'A'..'Z', 'a'..'z', '_':
+            lexer.setPosition(lexer.position() - 1)
+            let value = lexer.readSymbol()
+            let length = value.len()
+            case value:
+            of "if": yield newToken(If, length=length)
+            of "else": yield newToken(Else, length=length)
+            of "elif": yield newToken(ElseIf, length=length)
+            of "let": yield newToken(Let, length=length)
+            of "proc": yield newToken(Proc, length=length)
+            of "return": yield newToken(Ret, length=length)
+            of "import": yield newToken(Import, length=length)
+            of "pass": yield newToken(Pass, length=length)
+            of "true": yield newToken(True, length=length)
+            of "false": yield newToken(False, length=length)
+            of "and": yield newToken(And, length=length)
+            of "or": yield newToken(Or, length=length)
+            of "not": yield newToken(Not, length=length)
+            of "as": yield newToken(As, length=length)
+            of "extern": yield newToken(Extern, length=length)
+            else: yield newSymbol(value)
+        else:
+            yield newUnknown($c)
         c = lexer.readChar()
 
 proc tokens*(lexer: Lexer): seq[Token] =

@@ -4,7 +4,7 @@ type
     TokenKind* = enum
         Unknown
         NewLine
-        Indentation
+        DoubleSlash
 
         Symbol
         Number
@@ -24,11 +24,11 @@ type
 
         Comma
         Colon
-        ColonNewLine
         SemiColon
         OpenBracket
         CloseBracket
-        Pound
+        OpenCurly
+        CloseCurly
 
         Minus
         MinusEqual
@@ -59,8 +59,6 @@ type
         case kind*: TokenKind
         of Symbol, Number, Float, Str, Unknown:
             value*: string
-        of Indentation:
-            indentation*: int
         else:
             discard
 
