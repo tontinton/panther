@@ -34,6 +34,9 @@ type
         # This GEP value is so commonly used, let's create a global one once
         gep0: llvm.ValueRef
 
+        # For each opcode that gets jumped to, create a basic block and append it to this table.
+        opcodeBlocks: TableRef[int, llvm.BasicBlockRef]
+
         # For each jump opcode, we create a basic block and put it inside this table.
         # Once, we reach an opcode index that resides inside this table,
         # we go back to the basic block and append a jump instruction.
@@ -91,6 +94,7 @@ proc newLLVMBackend*(): LLVMBackend =
                 stack: Stack[LLVMVar](),
                 level: GLOBAL_LEVEL,
                 gep0: llvm.constInt(int32Type, 0.culonglong, llvm.False),
+                opcodeBlocks: newTable[int, llvm.BasicBlockRef](),
                 jumps: newTable[int, seq[LLVMJump]]())
 
 proc optimize(backend: LLVMBackend) =
@@ -227,23 +231,40 @@ proc buildNot(backend: LLVMBackend, value: LLVMVar): LLVMVar =
                Type(kind: Boolean))
 
 proc buildJump(backend: LLVMBackend, jumpTo: int, condition: LLVMVar = nil) =
-    let startBlock = backend.builder.getInsertBlock()
-    let llvmFunc = startBlock.getBasicBlockParent()
+    let opcodeBlock = backend.opcodeBlocks.getOrDefault(jumpTo, nil)
+    if opcodeBlock == nil:
+        # The opcode we need to jump to is in the future.
+        # Create a basic block and save it.
+        # Once we reach the opcode we need to jump to, we make a jump to the newly created basic block.
+        let startBlock = backend.builder.getInsertBlock()
+        let llvmFunc = startBlock.getBasicBlockParent()
 
-    let preJumpBlock = llvm.appendBasicBlockInContext(backend.context, llvmFunc, "prejump")
+        let preJumpBlock = llvm.appendBasicBlockInContext(backend.context, llvmFunc, "prejump")
 
-    if llvm.getBasicBlockTerminator(startBlock) == nil:
-        llvm.positionBuilderAtEnd(backend.builder, startBlock)
-        discard llvm.buildBr(backend.builder, preJumpBlock)
-    llvm.positionBuilderAtEnd(backend.builder, preJumpBlock)
+        if llvm.getBasicBlockTerminator(startBlock) == nil:
+            llvm.positionBuilderAtEnd(backend.builder, startBlock)
+            discard llvm.buildBr(backend.builder, preJumpBlock)
+        llvm.positionBuilderAtEnd(backend.builder, preJumpBlock)
 
-    let jumpBlock = llvm.appendBasicBlockInContext(backend.context, llvmFunc, "jump")
-    llvm.positionBuilderAtEnd(backend.builder, jumpBlock)
+        let jumpBlock = llvm.appendBasicBlockInContext(backend.context, llvmFunc, "jump")
+        llvm.positionBuilderAtEnd(backend.builder, jumpBlock)
 
-    if not backend.jumps.contains(jumpTo):
-        backend.jumps[jumpTo] = @[]
+        if not backend.jumps.contains(jumpTo):
+            backend.jumps[jumpTo] = @[]
 
-    backend.jumps[jumpTo].add(newLLVMJump(preJumpBlock, jumpBlock, condition=condition))
+        backend.jumps[jumpTo].add(newLLVMJump(preJumpBlock, jumpBlock, condition=condition))
+    else:
+        # The opcode basic block has already been created, make a jump to it.
+        let startBlock = backend.builder.getInsertBlock()
+        let llvmFunc = startBlock.getBasicBlockParent()
+        let jumpBackBlock = llvm.appendBasicBlockInContext(backend.context, llvmFunc, "jumpback")
+
+        if llvm.getBasicBlockTerminator(startBlock) == nil:
+            llvm.positionBuilderAtEnd(backend.builder, startBlock)
+            discard llvm.buildBr(backend.builder, jumpBackBlock)
+        llvm.positionBuilderAtEnd(backend.builder, jumpBackBlock)
+
+        discard llvm.buildBr(backend.builder, opcodeBlock)
 
 proc build(backend: LLVMBackend, code: ByteCode) =
     template pop(): LLVMVar =
@@ -252,10 +273,37 @@ proc build(backend: LLVMBackend, code: ByteCode) =
     template push(v: LLVMVar) =
         backend.stack.push(v)
 
+    # TODO: think of a way of doing this lazily inside the opcode compilation loop
+    var pastJumps = newSeq[int]()
+    for i, opcode in code.opcodes:
+        case opcode.kind:
+        of opcodes.JumpFalse, opcodes.JumpTrue, opcodes.Jump:
+            if opcode.value >= i:
+                continue
+
+            pastJumps.add(opcode.value)
+        else:
+            discard
+
     var opcodeIndex = 0
 
     while opcodeIndex < code.opcodes.len():
         let opcode = code.opcodes[opcodeIndex]
+
+        if opcodeIndex in pastJumps:
+            let startBlock = backend.builder.getInsertBlock()
+            if startBlock == nil:
+                raise newBackendError(fmt"cannot jump backwards to an opcode ouside of a basic block ({opcodeIndex})")
+
+            let llvmFunc = startBlock.getBasicBlockParent()
+            let opcodeBlock = llvm.appendBasicBlockInContext(backend.context, llvmFunc, intToStr(opcodeIndex))
+
+            if llvm.getBasicBlockTerminator(startBlock) == nil:
+                llvm.positionBuilderAtEnd(backend.builder, startBlock)
+                discard llvm.buildBr(backend.builder, opcodeBlock)
+            llvm.positionBuilderAtEnd(backend.builder, opcodeBlock)
+
+            backend.opcodeBlocks[opcodeIndex] = opcodeBlock
 
         let blocks = backend.jumps.getOrDefault(opcodeIndex, @[])
         if blocks.len() > 0:
