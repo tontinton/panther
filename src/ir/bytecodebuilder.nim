@@ -8,6 +8,8 @@ import frontend/tokens
 import common/types
 
 const FIX_INDEX = -1
+const FIX_TO_START = -2
+const FIX_TO_END = -3
 
 type
     ByteCodeBuilder = ref object
@@ -215,6 +217,10 @@ proc feed(builder: ByteCodeBuilder, expression: Expression) =
         let afterCond = builder.code.opcodes.len()
 
         builder.feed(expression.then)
+
+        if expression.token.kind == While:
+            add(Opcode(kind: Jump, value: start))
+
         let afterThen = builder.code.opcodes.len()
 
         for i in start..<afterCond:
@@ -225,6 +231,20 @@ proc feed(builder: ByteCodeBuilder, expression: Expression) =
                 builder.code.opcodes[i].value = afterThen
             else:
                 discard
+
+        if expression.token.kind == While:
+            for i in afterCond..<afterThen:
+                case builder.code.opcodes[i].kind:
+                of Jump:
+                    case builder.code.opcodes[i].value:
+                    of FIX_TO_START:
+                        builder.code.opcodes[i].value = start
+                    of FIX_TO_END:
+                        builder.code.opcodes[i].value = afterThen
+                    else:
+                        discard
+                else:
+                    discard
 
     of IfElseThen:
         let beforeIf = builder.code.opcodes.len()
@@ -256,6 +276,15 @@ proc feed(builder: ByteCodeBuilder, expression: Expression) =
                     builder.code.opcodes[i].value = afterJump
                 else:
                     discard
+
+    of Breakage:
+        case expression.token.kind:
+        of Continue:
+            add(Opcode(kind: Jump, value: FIX_TO_START))
+        of Break:
+            add(Opcode(kind: Jump, value: FIX_TO_END))
+        else:
+            raise newException(LibraryError, fmt"unsupported breakage: {expression.token.kind}")
 
     of Empty:
         discard
