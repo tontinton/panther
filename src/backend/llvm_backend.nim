@@ -100,7 +100,9 @@ proc newLLVMBackend*(): LLVMBackend =
 proc optimize(backend: LLVMBackend) =
     # TODO: align-all-blocks=1 / align-all-functions=1
     let pmb = llvm.passManagerBuilderCreate()
-    pmb.passManagerBuilderSetOptLevel(2)
+
+    # Minize size by not letting faster but larger code to be ever picked over small code
+    pmb.passManagerBuilderSetOptLevel(0)
     pmb.passManagerBuilderSetSizeLevel(2)
 
     let fpm = backend.module.createFunctionPassManagerForModule()
