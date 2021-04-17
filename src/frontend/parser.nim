@@ -107,6 +107,16 @@ proc parseBlock*(parser: Parser, tokens: seq[Token]): Expression =
     for expression in parser.parse(tokens):
         result.expressions.add(expression)
 
+proc nextExpressionUntil(parser: Parser,
+                         state: ParserState,
+                         stopAt: TokenKind): Option[Expression] =
+    state.separator = some(stopAt)
+    try:
+        result = parser.nextExpression(state)
+    finally:
+        state.separator = none[TokenKind]()
+    dec(state.index)
+
 proc nextBlock(parser: Parser, state: ParserState): Expression =
     let blockParser = newParser()
     result = Expression(kind: Block, expressions: @[])
@@ -171,6 +181,20 @@ proc buildBinOp(parser: Parser,
     else:
         return some(tree)
 
+proc buildConditionedBlock(parser: Parser, state: ParserState, token: Token): Expression =
+    var expression = parser.nextExpressionUntil(state, OpenCurly)
+    if expression.isNone():
+        raise newParseError(token, fmt"no expression after `{token.kind}`")
+
+    let condition = expression.get()
+
+    expression = parser.nextExpression(state)
+    if expression.isNone():
+        raise newParseError(token, fmt"no block after `{token.kind}`")
+
+    let then = expression.get()
+    Expression(kind: IfThen, condition: condition, then: then, token: token)
+
 proc buildUndeterminedType(state: ParserState, value: string): Type =
     let startIndex = state.index
     while state.index < state.tokens.len() and state.tokens[state.index].kind == Mul:
@@ -224,16 +248,6 @@ proc nextType(parser: Parser, state: ParserState, token: Token): Type =
             return buildVoidType()
     else:
         return buildVoidType()
-
-proc nextExpressionUntil(parser: Parser,
-                         state: ParserState,
-                         stopAt: TokenKind): Option[Expression] =
-    state.separator = some(stopAt)
-    try:
-        result = parser.nextExpression(state)
-    finally:
-        state.separator = none[TokenKind]()
-    dec(state.index)
 
 proc nextExpression(parser: Parser,
                     state: ParserState,
@@ -416,28 +430,23 @@ proc nextExpression(parser: Parser,
             dec(state.index)
             return some(prev)
 
+    of Break, Continue:
+        return some(Expression(kind: Breakage, token: token))
+
+    of While:
+        return some(parser.buildConditionedBlock(state, token))
+
     of If, ElseIf:
-        if token.kind == ElseIf and prev.kind != IfThen:
+        if token.kind == ElseIf and prev.kind != IfThen and prev.token.kind != If:
             raise newParseError(token, &"`elif` can only come after `if`")
 
-        var expression = parser.nextExpressionUntil(state, OpenCurly)
-        if expression.isNone():
-            raise newParseError(token, fmt"no expression after `{token.kind}`")
-
-        let condition = expression.get()
-
-        expression = parser.nextExpression(state)
-        if expression.isNone():
-            raise newParseError(token, fmt"no block after `{token.kind}`")
-
-        let then = expression.get()
-        let ifExpr = Expression(kind: IfThen, condition: condition, then: then, token: token)
+        let ifExpr = parser.buildConditionedBlock(state, token)
 
         if state.index < state.tokens.len():
             let nextToken = state.tokens[state.index]
             case nextToken.kind:
             of ElseIf:
-                expression = parser.nextExpression(state, ifExpr)
+                let expression = parser.nextExpression(state, ifExpr)
                 if expression.isNone():
                     raise newParseError(token, fmt"no block after `{nextToken.kind}`")
 

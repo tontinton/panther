@@ -8,6 +8,7 @@ import common/customerrors
 type
     ExpressionKind* = enum
         Empty
+        Breakage
         Ident
         TypedIdent
         Literal
@@ -27,7 +28,7 @@ type
         token*: Token  # Used for error messages
 
         case kind*: ExpressionKind
-        of Empty:
+        of Empty, Breakage:
             discard
         of Ident:
             value*: string
@@ -124,7 +125,12 @@ func formatTreeString(expression: Expression, tabs: uint = 0): string =
 
     of IfThen:
         let t = tabs.toString()
-        fmt"""{t}if:
+        let action = case expression.token.kind:
+                     of While:
+                         "while"
+                     else:
+                         "if"
+        fmt"""{t}{action}:
 {expression.condition.formatTreeString(tabs + 1)}
 {t}then:
 {expression.then.formatTreeString(tabs + 1)}"""
@@ -175,6 +181,16 @@ func formatTreeString(expression: Expression, tabs: uint = 0): string =
 
     of Return:
         &"{tabs.toString()}return:\n{expression.retExpr.formatTreeString(tabs + 1)}"
+
+    of Breakage:
+        let action = case expression.token.kind:
+                     of Break:
+                         "break"
+                     of Continue:
+                         "continue"
+                     else:
+                         "?"
+        &"{tabs.toString()}{action}"
 
     of Cast:
         let t = tabs.toString()

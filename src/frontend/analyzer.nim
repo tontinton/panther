@@ -23,6 +23,7 @@ type
         functions: TableRef[string, Function]
         types: TableRef[string, Type]
         insideFunction: Option[string]
+        insideLoop: bool
 
 func newFunction(expression: Expression,
                  params: seq[(string, Type)],
@@ -41,7 +42,8 @@ func newGlobalScope(): Scope =
     Scope(names: newTable[string, Type](),
           functions: newTable[string, Function](),
           types: types,
-          insideFunction: none[string]())
+          insideFunction: none[string](),
+          insideLoop: false)
 
 proc newFunctionScope(scope: Scope, funcName: string): Scope =
     var names = newTable[string, Type]()
@@ -57,7 +59,7 @@ proc newFunctionScope(scope: Scope, funcName: string): Scope =
     for (key, value) in scope.types.pairs():
         types[key] = value
 
-    Scope(names: names, functions: functions, types: types, insideFunction: some(funcName))
+    Scope(names: names, functions: functions, types: types, insideFunction: some(funcName), insideLoop: false)
 
 proc defaultExpression(typ: Type, token: Token): Expression =
     withSome typ.defaultValue():
@@ -436,18 +438,28 @@ proc analyze(expression: Expression, scope: Scope) =
         of IfThen:
             withErrorCatching:
                 if not expression.condition.isResultExpression():
-                    raise newParseError(expression, fmt"invalid condition expression on if statement")
+                    raise newParseError(expression, fmt"invalid condition expression")
 
                 if expression.then.kind != Block:
                     raise newParseError(expression, fmt"got {expression.then.kind}, but expected {Block}")
 
                 expression.condition.analyze(scope)
 
+            let prevInsideLoop = scope.insideLoop
+            if expression.token.kind == While:
+                scope.insideLoop = true
+
             expression.then.analyze(scope)
+
+            scope.insideLoop = prevInsideLoop
 
         of IfElseThen:
             expression.ifThen.analyze(scope)
             expression.otherwise.analyze(scope)
+
+        of Breakage:
+            if not scope.insideLoop:
+                raise newParseError(expression, fmt"cannot {expression.token.kind} ouside of a loop")
 
         of Assign:
             let assignee = expression.assignee

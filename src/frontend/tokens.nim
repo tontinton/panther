@@ -22,6 +22,10 @@ type
         True
         False
 
+        While
+        Break
+        Continue
+
         Comma
         Colon
         SemiColon
