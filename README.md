@@ -35,8 +35,6 @@ objcopy -j .shell -O binary output.exe shellcode.bin
 
 When ``main.pan`` looks like:
 ```rust
-let TEST_NUMBER = 30;
-
 proc _start();  // First function in the shellcode
 
 proc fib(a: s32) -> s32 {
@@ -52,8 +50,12 @@ proc fib(a: s32) -> s32 {
 let printf = 0x402ba0 as proc(fmt: string, num: s32);
 
 proc _start() {
-    printf("%d\n", fib(TEST_NUMBER));
+    let i = 1;
+    while i <= 15 {
+        printf("%d\n", fib(i));
+        i = i + 1;
+    }
 }
 ```
 
-Results in a shellcode (``shellcode.bin``) that prints the 30th fibonnaci number.
+Results in a shellcode (``shellcode.bin``) that prints the the first 15 fibonnaci numbers.
